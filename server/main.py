@@ -25,6 +25,8 @@ from server.services.flow_scanner    import scan_unusual_flow
 from server.services.earnings_iv     import get_earnings_iv_analysis
 from server.services.intraday_scanner import scan_intraday
 from server.services.multi_timeframe  import get_multi_timeframe
+from server.services.pivots          import get_pivots
+from server.services.internals       import get_internals
 from server.services.trading         import (
     get_account, get_positions, get_orders, place_order, cancel_order, close_position
 )
@@ -379,6 +381,48 @@ async def oi_changes(symbol: str, expiry: str | None = None):
         "currTime": t_curr[:19],
         "totalChanged": len(changes),
     }
+
+
+# ── News ─────────────────────────────────────────────────────────────────────
+
+@app.get("/api/news/{symbol}")
+async def news(symbol: str, limit: int = 8):
+    import yfinance as yf
+    def _fetch():
+        items = []
+        try:
+            raw = yf.Ticker(symbol.upper()).news or []
+            for n in raw[:limit]:
+                c     = n.get("content", n)
+                title = c.get("title", "")
+                if not title:
+                    continue
+                cp  = c.get("canonicalUrl") or c.get("clickThroughUrl") or {}
+                url = cp.get("url", "") if isinstance(cp, dict) else ""
+                pub = c.get("provider", {}).get("displayName", "") if isinstance(c.get("provider"), dict) else ""
+                ts  = c.get("pubDate", "")
+                items.append({"title": title, "link": url, "publisher": pub, "publishedAt": ts})
+        except Exception:
+            pass
+        return items
+    result = await asyncio.to_thread(_fetch)
+    return {"news": result, "symbol": symbol.upper()}
+
+
+# ── Pivot points ─────────────────────────────────────────────────────────────
+
+@app.get("/api/chart/{symbol}/pivots")
+async def pivots(symbol: str):
+    result = await asyncio.to_thread(get_pivots, symbol.upper())
+    return result
+
+
+# ── Market internals ──────────────────────────────────────────────────────────
+
+@app.get("/api/internals")
+async def internals():
+    result = await asyncio.to_thread(get_internals)
+    return result
 
 
 # ── VWAP ─────────────────────────────────────────────────────────────────────

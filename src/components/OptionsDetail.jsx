@@ -89,37 +89,6 @@ export default function OptionsDetail({ sym, price, closes, onClose, refreshKey 
     setLoadingExp(false)
   }
 
-  const hasAlpaca  = !!(import.meta.env.VITE_ALPACA_KEY_ID && import.meta.env.VITE_ALPACA_SECRET_KEY)
-  const hasAvKey   = !!import.meta.env.VITE_ALPHA_VANTAGE_API_KEY
-  const hasTradier = !!import.meta.env.VITE_TRADIER_TOKEN
-  const hasAnySource = hasAlpaca || hasAvKey || hasTradier
-
-  // ── No API keys configured ─────────────────────────────────────────────────
-  if (!hasAnySource) return (
-    <div style={{
-      padding: '16px', background: 'var(--bg-secondary)', borderRadius: 'var(--r-lg)',
-      border: '0.5px solid var(--border-subtle)', margin: '4px 0',
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>
-            Real options data requires an API key — choose one:
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.9 }}>
-            <strong>Option A — Alpaca (free, recommended):</strong><br/>
-            Sign up free at <strong>alpaca.markets</strong> → Paper Trading → API Keys<br/>
-            <code style={{ background: 'var(--bg-tertiary)', padding: '2px 8px', borderRadius: 3 }}>VITE_ALPACA_KEY_ID=your_key</code><br/>
-            <code style={{ background: 'var(--bg-tertiary)', padding: '2px 8px', borderRadius: 3 }}>VITE_ALPACA_SECRET_KEY=your_secret</code><br/><br/>
-            <strong>Option B — Tradier (free account):</strong><br/>
-            Sign up at <strong>tradier.com/products/markets/data-api</strong><br/>
-            <code style={{ background: 'var(--bg-tertiary)', padding: '2px 8px', borderRadius: 3 }}>VITE_TRADIER_TOKEN=your_token</code>
-          </div>
-        </div>
-        <button onClick={onClose} style={{ fontSize: 11, cursor: 'pointer', color: 'var(--text-tertiary)', background: 'none', border: 'none', flexShrink: 0 }}>✕</button>
-      </div>
-    </div>
-  )
-
   // ── Loading state ──────────────────────────────────────────────────────────
   if (loading) return (
     <div style={{
@@ -129,9 +98,9 @@ export default function OptionsDetail({ sym, price, closes, onClose, refreshKey 
     }}>
       <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
         <span style={{ display: 'inline-block', width: 12, height: 12, border: '1.5px solid var(--border-default)', borderTopColor: 'var(--blue)', borderRadius: '50%', animation: 'spin .6s linear infinite', verticalAlign: 'middle', marginRight: 6 }} />
-        Fetching options chain for <strong>{sym}</strong>...
+        Fetching options chain for <strong>{sym}</strong>…
       </div>
-      <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Connecting to Tradier...</div>
+      <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Via Python backend (yfinance)</div>
     </div>
   )
 
@@ -143,8 +112,8 @@ export default function OptionsDetail({ sym, price, closes, onClose, refreshKey 
     }}>
       <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
         {error
-          ? `Error loading chain for ${sym}: ${error}`
-          : `No options data for ${sym}. ${hasAvKey ? 'AlphaVantage options requires a premium plan.' : 'Add VITE_TRADIER_TOKEN to .env for real data.'}`
+          ? `Error loading options for ${sym}: ${error}`
+          : `No options data for ${sym} — make sure the Python backend is running (cd server && uvicorn main:app --reload)`
         }
       </span>
       <button onClick={onClose} style={{ fontSize: 11, cursor: 'pointer', color: 'var(--text-tertiary)', background: 'none', border: 'none' }}>✕</button>

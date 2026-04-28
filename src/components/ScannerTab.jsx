@@ -187,17 +187,19 @@ export default function ScannerTab({ onAnalyze, preset = null, onPresetConsumed 
             <table className="data-table">
               <thead>
                 <tr>
-                  <th style={{ width: '10%' }}>Ticker</th>
-                  <th style={{ width: '12%' }}>Score</th>
-                  <th style={{ width: '10%' }}>Signal</th>
-                  <th style={{ width: '10%' }}>Price</th>
-                  <th style={{ width: '8%'  }}>RSI</th>
-                  <th style={{ width: '10%' }}>MACD</th>
-                  <th style={{ width: '10%' }}>Trend</th>
-                  <th style={{ width: '8%'  }}>Vol×</th>
-                  <th style={{ width: '11%' }}>Stop</th>
-                  <th style={{ width: '11%' }}>Target</th>
-                  <th style={{ width: '10%' }}>Action</th>
+                  <th>Ticker</th>
+                  <th>Score</th>
+                  <th>Signal</th>
+                  <th>Price</th>
+                  <th>Chg%</th>
+                  <th>Volume</th>
+                  <th>RSI</th>
+                  <th>MACD</th>
+                  <th>Trend</th>
+                  <th>Vol×</th>
+                  <th>Stop</th>
+                  <th>Target</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -207,8 +209,15 @@ export default function ScannerTab({ onAnalyze, preset = null, onPresetConsumed 
                       <td><strong style={{ color: SIGNAL_COLOR[r.signal] }}>{r.symbol}</strong></td>
                       <td><ScoreBar score={r.score} /></td>
                       <td><span className={`badge ${SIGNAL_BADGE[r.signal] || 'badge-warn'}`}>{r.signal?.replace('_', ' ')}</span></td>
-                      <td style={{ fontFamily: 'var(--font-mono)' }}>{r.price ? fmtPrice(r.price) : '—'}</td>
-                      <td style={{ fontFamily: 'var(--font-mono)', color: r.rsi > 70 ? 'var(--red-text)' : r.rsi < 30 ? 'var(--green-text)' : 'var(--text-primary)' }}>
+                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{r.price ? fmtPrice(r.price) : '—'}</td>
+                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11,
+                        color: r.change_pct > 0 ? 'var(--green-text)' : r.change_pct < 0 ? 'var(--red-text)' : 'var(--text-secondary)' }}>
+                        {r.change_pct != null ? `${r.change_pct > 0 ? '+' : ''}${r.change_pct.toFixed(2)}%` : '—'}
+                      </td>
+                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>
+                        {r.volume ? (r.volume >= 1e6 ? `${(r.volume/1e6).toFixed(1)}M` : r.volume >= 1e3 ? `${(r.volume/1e3).toFixed(0)}K` : r.volume) : '—'}
+                      </td>
+                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: r.rsi > 70 ? 'var(--red-text)' : r.rsi < 30 ? 'var(--green-text)' : 'var(--text-primary)' }}>
                         {r.rsi?.toFixed(1) ?? '—'}
                       </td>
                       <td>
@@ -231,7 +240,7 @@ export default function ScannerTab({ onAnalyze, preset = null, onPresetConsumed 
                     </tr>
                     {expanded === r.symbol && (
                       <tr key={`${r.symbol}-detail`}>
-                        <td colSpan={11} style={{ padding: '8px 12px', background: 'var(--bg-secondary)' }}>
+                        <td colSpan={13} style={{ padding: '8px 12px', background: 'var(--bg-secondary)' }}>
                           <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
                             {(r.reasons || []).map((line, i) => (
                               <div key={i} style={{ color: line.startsWith('✅') ? 'var(--green-text)' : line.startsWith('❌') ? 'var(--red-text)' : line.startsWith('⚠') ? 'var(--amber-text)' : 'var(--text-secondary)' }}>

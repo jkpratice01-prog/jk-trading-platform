@@ -94,13 +94,19 @@ def _fetch_bars_alpaca(symbol: str, api_key: str, secret: str, days: int = 90) -
 
 def _fetch_bars_yf(symbol: str, days: int = 90) -> pd.DataFrame:
     try:
-        df = yf.download(symbol, period=f"{days}d", interval="1d",
-                         auto_adjust=True, progress=False)
-        if df.empty:
+        # Use Ticker.history() — avoids yfinance MultiIndex column issues with yf.download()
+        hist = yf.Ticker(symbol).history(period=f"{days}d", interval="1d")
+        if hist.empty:
             return pd.DataFrame()
-        df = df.reset_index()
-        df.columns = [c.lower() for c in df.columns]
-        return df[["date", "open", "high", "low", "close", "volume"]].dropna()
+        hist = hist.reset_index()
+        hist.columns = [c.lower() for c in hist.columns]
+        # yfinance history() uses 'date' or 'datetime' depending on interval
+        if 'datetime' in hist.columns:
+            hist = hist.rename(columns={'datetime': 'date'})
+        # Drop timezone from date if present
+        if hasattr(hist['date'].dtype, 'tz') and hist['date'].dtype.tz:
+            hist['date'] = hist['date'].dt.tz_localize(None)
+        return hist[["date", "open", "high", "low", "close", "volume"]].dropna()
     except Exception as e:
         print(f"[scanner/yf] {symbol}: {e}")
         return pd.DataFrame()
@@ -261,10 +267,16 @@ def _score(df: pd.DataFrame, symbol: str) -> tuple[float, list[str], dict]:
     risk  = price - stop
     tgt   = round(price + risk * 2, 2)
 
+    prev_close = float(df.iloc[-2]["close"])
+    change_pct = round((price - prev_close) / prev_close * 100, 2) if prev_close else 0
+    volume     = int(last.get("volume", 0))
+
     return score, notes, {
         **cond,
         "signal":       signal,
         "price":        round(price, 2),
+        "change_pct":   change_pct,
+        "volume":       volume,
         "rsi":          round(float(rsi), 1) if pd.notna(rsi) else None,
         "volume_ratio": round(float(vol_ratio), 2) if pd.notna(vol_ratio) else None,
         "macd_signal":  "BULLISH" if macd_ok else "BEARISH",
@@ -319,10 +331,12 @@ def scan_symbols(symbols: list[str], alpaca_key: str = "", alpaca_secret: str = 
                 if score < min_score:
                     continue
                 results.append({
-                    "symbol": sym,
+                    "symbol":       sym,
                     "score":        round(score, 1),
                     "signal":       cond.get("signal", "NEUTRAL"),
                     "price":        cond.get("price"),
+                    "change_pct":   cond.get("change_pct"),
+                    "volume":       cond.get("volume"),
                     "rsi":          cond.get("rsi"),
                     "macd_signal":  cond.get("macd_signal"),
                     "trend":        cond.get("trend"),

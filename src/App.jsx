@@ -15,6 +15,8 @@ import FlowScannerTab   from './components/FlowScannerTab.jsx'
 import IntradayScanner  from './components/IntradayScanner.jsx'
 import TradingTab       from './components/TradingTab.jsx'
 import TradeJournal     from './components/TradeJournal.jsx'
+import StrategyBuilder      from './components/StrategyBuilder.jsx'
+import NewsImpactScanner    from './components/NewsImpactScanner.jsx'
 
 import { getQuotes, getDayGainers, getDayLosers } from './api/yahooFinance.js'
 import { nowLabel } from './utils/helpers.js'
@@ -22,12 +24,14 @@ import { nowLabel } from './utils/helpers.js'
 const TABS = [
   { id: 'dashboard', label: 'Dashboard'  },
   { id: 'analyzer',  label: 'Analyzer'   },
+  { id: 'news-impact', label: '📰 News Impact' },
   { id: 'scanner',   label: 'Scanner'    },
   { id: 'premarket', label: 'Pre-Market' },
   { id: 'flow',      label: 'Flow'       },
   { id: 'intraday',  label: 'Intraday'   },
   { id: 'trading',   label: 'Trading'    },
   { id: 'journal',   label: 'Journal'    },
+  { id: 'strategy',  label: 'Strategy'   },
   { id: 'compare',   label: 'Compare'    },
   { id: 'tracker',   label: 'Tracker'    },
   { id: 'export',    label: 'Export'     },
@@ -41,7 +45,7 @@ const REFRESH_OPTIONS = [
   { value: 240,  label: '4 hr'   },
 ]
 
-const MKT_SYMS = ['SPY', 'QQQ', 'IWM', 'DIA', '^VIX', 'GLD', 'SLV']
+const MKT_SYMS = ['SPY', 'QQQ', 'IWM', 'DIA', '^VIX', 'GLD', 'SLV', 'USO']
 
 export default function App() {
   const [theme,         setTheme]         = useState(() => localStorage.getItem('tp_theme')    || 'dark')
@@ -297,6 +301,9 @@ export default function App() {
         {activeTab === 'analyzer' && (
           <Analyzer initialTicker={analyzeTicker} onExport={openExport} />
         )}
+        {activeTab === 'news-impact' && (
+          <NewsImpactScanner onAnalyze={openAnalyzer} />
+        )}
         {activeTab === 'scanner' && (
           <ScannerTab onAnalyze={openAnalyzer} preset={scannerPreset} onPresetConsumed={() => setScannerPreset(null)} />
         )}
@@ -314,6 +321,9 @@ export default function App() {
         )}
         {activeTab === 'journal' && (
           <TradeJournal onAnalyze={openAnalyzer} />
+        )}
+        {activeTab === 'strategy' && (
+          <StrategyBuilder initialSymbol={analyzeTicker} />
         )}
         {activeTab === 'compare' && (
           <Compare onAnalyze={openAnalyzer} />

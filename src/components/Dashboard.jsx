@@ -2,7 +2,8 @@
 import { useState, useEffect, Fragment } from 'react'
 import { getQuotes } from '../api/yahooFinance.js'
 import { fmtPrice, fmtPct, fmtVol, chgColor, chgBadge } from '../utils/helpers.js'
-import OptionsDetail from './OptionsDetail.jsx'
+import OptionsDetail    from './OptionsDetail.jsx'
+import MarketInternals  from './MarketInternals.jsx'
 import { backendOptionsFlow, backendOptionsFlowBatch, backendEarnings } from '../api/backend.js'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -240,6 +241,7 @@ export default function Dashboard({ marketData, gainers, losers, onAnalyze, onRe
           { sym: 'IWM',  label: 'IWM'   },
           { sym: 'GLD',  label: 'Gold'  },
           { sym: 'SLV',  label: 'Silver'},
+          { sym: 'USO',  label: 'Oil'   },
         ].map(({ sym, label }) => {
           const q   = marketData[sym]
           const chg = q?.regularMarketChangePercent
@@ -269,6 +271,9 @@ export default function Dashboard({ marketData, gainers, losers, onAnalyze, onRe
           )
         })}
       </div>
+
+      {/* ── Market Internals ──────────────────────────────────────────── */}
+      <MarketInternals refreshTick={refreshTick} />
 
       {/* ── Sector heatmap — single full row ──────────────────────────── */}
       <div className="card" style={{padding:'8px 12px'}}>

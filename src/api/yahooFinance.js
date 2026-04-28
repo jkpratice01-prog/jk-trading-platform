@@ -99,6 +99,13 @@ export async function getDayLosers(n = 12) {
 }
 
 export async function getNews(symbol) {
+  // Prefer backend (yfinance server-side) — proxy-based direct fetch is unreliable
+  try {
+    const { backendNews } = await import('./backend.js')
+    const data = await backendNews(symbol, 8)
+    if (data?.news?.length) return data.news
+  } catch {}
+  // Fallback: direct Yahoo search via proxy
   const url  = `https://query1.finance.yahoo.com/v1/finance/search?q=${symbol}&newsCount=6`
   const data = await yfFetch(url)
   return data?.news || []

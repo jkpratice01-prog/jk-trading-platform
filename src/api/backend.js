@@ -123,6 +123,21 @@ export async function isBackendAlive() {
   }
 }
 
+// ── News ─────────────────────────────────────────────────────────────────────
+export async function backendNews(symbol, limit = 8) {
+  return apiFetch(`/api/news/${symbol}?limit=${limit}`)
+}
+
+// ── Pivot points ─────────────────────────────────────────────────────────────
+export async function backendPivots(symbol) {
+  return apiFetch(`/api/chart/${symbol}/pivots`)
+}
+
+// ── Market internals ──────────────────────────────────────────────────────────
+export async function backendInternals() {
+  return apiFetch('/api/internals')
+}
+
 // ── Pre-market ────────────────────────────────────────────────────────────────
 export async function backendPremarket(limit = 30) {
   return apiFetch(`/api/premarket?limit=${limit}`)
