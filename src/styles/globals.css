@@ -1,0 +1,159 @@
+/* src/styles/globals.css - Global design system */
+
+:root {
+  /* ── Dark theme (default) ── */
+  --bg-primary:    #0a0e27;
+  --bg-secondary:  #0f1229;
+  --bg-tertiary:   #131929;
+  --bg-card:       #0a0e27;
+  --bg-hover:      #1a1f3a;
+
+  --text-primary:   #e8eaed;
+  --text-secondary: #9aa0a6;
+  --text-tertiary:  #5f6368;
+
+  --border-default: #3c4043;
+  --border-subtle:  #202124;
+
+  --green:      #81c995;
+  --green-dim:  rgba(129, 201, 149, 0.08);
+  --green-text: #81c995;
+
+  --red:      #f28482;
+  --red-dim:  rgba(242, 132, 130, 0.08);
+  --red-text: #f28482;
+
+  --amber:      #fbc02d;
+  --amber-dim:  rgba(251, 192, 45, 0.12);
+  --amber-text: #fbc02d;
+
+  --blue:     #8ab4f8;
+  --blue-dim: rgba(138, 180, 248, 0.10);
+
+  /* Fonts */
+  --font-main: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --font-mono: 'SF Mono', 'Monaco', 'Cascadia Code', monospace;
+
+  /* Dimensions */
+  --r-sm:   4px;
+  --r-md:   6px;
+  --r-lg:   10px;
+  --r-pill: 12px;
+
+  /* Timing */
+  --dur:  200ms;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Light theme ──────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg-primary:    #ffffff;
+  --bg-secondary:  #f8f9fa;
+  --bg-tertiary:   #f1f3f4;
+  --bg-card:       #ffffff;
+  --bg-hover:      #e8eaed;
+
+  --text-primary:   #202124;
+  --text-secondary: #5f6368;
+  --text-tertiary:  #9aa0a6;
+
+  --border-default: #dadce0;
+  --border-subtle:  #e8eaed;
+
+  --green:      #1a7f37;
+  --green-dim:  rgba(26, 127, 55, 0.08);
+  --green-text: #1a7f37;
+
+  --red:      #c62828;
+  --red-dim:  rgba(198, 40, 40, 0.08);
+  --red-text: #c62828;
+
+  --amber:      #e65100;
+  --amber-dim:  rgba(230, 81, 0, 0.08);
+  --amber-text: #e65100;
+
+  --blue:     #1a73e8;
+  --blue-dim: rgba(26, 115, 232, 0.08);
+}
+
+[data-theme="light"] body,
+[data-theme="light"] #root {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] input,
+[data-theme="light"] select,
+[data-theme="light"] textarea {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-track  { background: var(--bg-tertiary);  }
+[data-theme="light"] ::-webkit-scrollbar-thumb  { background: var(--border-default); }
+
+/* ── Font size scales — zoom on body scales all px values ─── */
+body.font-large  { zoom: 1.18; }
+body.font-normal { zoom: 1;    }
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-main);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+input, select, button, textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+input, select, textarea {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 0.5px solid var(--border-default);
+  border-radius: var(--r-md);
+  padding: 5px 8px;
+  outline: none;
+  transition: all var(--dur) var(--ease);
+}
+
+input:hover, select:hover, textarea:hover {
+  border-color: var(--border-default);
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--green);
+  box-shadow: 0 0 0 2px rgba(129, 201, 149, 0.1);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-tertiary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-secondary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-default);
+}
+

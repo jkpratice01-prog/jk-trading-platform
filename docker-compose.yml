@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  trading-platform:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_ALPHA_VANTAGE_API_KEY=${VITE_ALPHA_VANTAGE_API_KEY:-demo}
+    volumes:
+      - .:/app
+      - /app/node_modules
+    restart: unless-stopped
+    container_name: trading-platform
+
+  # Optional: Development server with hot reload
+  dev:
+    image: node:18-alpine
+    working_dir: /app
+    command: npm run dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - VITE_ALPHA_VANTAGE_API_KEY=${VITE_ALPHA_VANTAGE_API_KEY:-demo}
+    restart: unless-stopped
+    container_name: trading-platform-dev
+

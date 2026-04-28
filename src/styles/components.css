@@ -1,0 +1,282 @@
+/* src/styles/components.css - Component styles */
+
+/* ── Grid layouts ────────────────────────────────────────── */
+.g4 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.g2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 12px;
+}
+
+/* ── Cards ───────────────────────────────────────────────── */
+.card {
+  background: var(--bg-card);
+  border: 0.5px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Metric boxes ────────────────────────────────────────── */
+.metric {
+  background: var(--bg-secondary);
+  border: 0.5px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metric-label {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.metric-value {
+  font-weight: 500;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+.metric-sub {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.metric-sub.up {
+  color: var(--green-text);
+}
+
+.metric-sub.dn {
+  color: var(--red-text);
+}
+
+.metric-sub.warn {
+  color: var(--amber-text);
+}
+
+.metric-sub.neu {
+  color: var(--text-secondary);
+}
+
+/* ── Panel headers ───────────────────────────────────────── */
+.panel-hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 0.5px solid var(--border-subtle);
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+
+.panel-title {
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 0.5px solid var(--border-default);
+  border-radius: var(--r-md);
+  padding: 5px 8px;
+  font-size: 11px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all var(--dur) var(--ease);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn:hover {
+  background: var(--bg-card);
+  border-color: var(--border-default);
+}
+
+.btn:active {
+  background: var(--border-subtle);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--green);
+  color: #000;
+  border-color: var(--green);
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+.btn-success {
+  background: var(--green-dim);
+  color: var(--green-text);
+  border-color: var(--green);
+}
+
+.btn-icon {
+  padding: 4px 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Pills & Badges ──────────────────────────────────────── */
+.pill {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 0.5px solid var(--border-default);
+  border-radius: var(--r-pill);
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all var(--dur) var(--ease);
+  white-space: nowrap;
+}
+
+.pill:hover {
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+
+.pill.act {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--border-default);
+  font-weight: 500;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  font-size: 9px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.badge-up {
+  background: var(--green-dim);
+  color: var(--green-text);
+}
+
+.badge-dn {
+  background: var(--red-dim);
+  color: var(--red-text);
+}
+
+.badge-warn {
+  background: rgba(251, 192, 45, 0.08);
+  color: var(--amber-text);
+}
+
+.badge-neu {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+/* ── Data table ──────────────────────────────────────────── */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.data-table thead {
+  background: var(--bg-tertiary);
+  border-bottom: 0.5px solid var(--border-subtle);
+}
+
+.data-table th {
+  padding: 6px 8px;
+  text-align: left;
+  font-weight: 500;
+  color: var(--text-secondary);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+}
+
+.data-table tbody tr {
+  border-bottom: 0.5px solid var(--border-subtle);
+  transition: all var(--dur) var(--ease);
+}
+
+.data-table tbody tr:hover {
+  background: var(--bg-tertiary);
+  cursor: pointer;
+}
+
+.data-table td {
+  padding: 7px 8px;
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+.data-table td.up {
+  color: var(--green-text);
+  font-weight: 500;
+}
+
+.data-table td.dn {
+  color: var(--red-text);
+  font-weight: 500;
+}
+
+.data-table td.neu {
+  color: var(--text-secondary);
+}
+
+/* ── Spinner ─────────────────────────────────────────────── */
+.spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--border-subtle);
+  border-top-color: var(--green);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Skeleton ─────────────────────────────────────────────– */
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-tertiary) 0%, var(--border-default) 50%, var(--bg-tertiary) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
