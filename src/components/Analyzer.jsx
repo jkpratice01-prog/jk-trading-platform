@@ -5,6 +5,8 @@ import VWAPPanel        from './VWAPPanel.jsx'
 import CandlestickChart from './CandlestickChart.jsx'
 import MultiTimeframe   from './MultiTimeframe.jsx'
 import PivotLevels      from './PivotLevels.jsx'
+import AnalyzerInsights  from './AnalyzerInsights.jsx'
+import EarningsHistory   from './EarningsHistory.jsx'
 
 export default function Analyzer({ initialTicker, onExport }) {
   const [ticker,   setTicker]   = useState(initialTicker || 'AAPL')
@@ -63,7 +65,7 @@ export default function Analyzer({ initialTicker, onExport }) {
 
         {/* Sub-tabs */}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
-          {[['chart','Chart'],['vwap','VWAP'],['multi-tf','Multi-TF'],['pivots','Pivots']].map(([id, label]) => (
+          {[['chart','Chart'],['vwap','VWAP'],['multi-tf','Multi-TF'],['pivots','Pivots'],['earnings-hist','Earnings History']].map(([id, label]) => (
             <button key={id} className={`btn${tab === id ? ' btn-primary' : ''}`}
               onClick={() => setTab(id)} style={{ fontSize: 11 }}>
               {label}
@@ -108,6 +110,9 @@ export default function Analyzer({ initialTicker, onExport }) {
         </div>
       )}
 
+      {/* ── Insights panels ────────────────────────────── */}
+      {ticker && <AnalyzerInsights symbol={ticker} quote={quote} />}
+
       {/* ── Chart tab ──────────────────────────────────── */}
       {tab === 'chart' && (
         <div className="card">
@@ -140,6 +145,17 @@ export default function Analyzer({ initialTicker, onExport }) {
             <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Daily · Weekly · Monthly S/R levels</span>
           </div>
           <PivotLevels symbol={ticker} currentPrice={quote?.regularMarketPrice} />
+        </div>
+      )}
+
+      {/* ── Earnings history tab ───────────────────────── */}
+      {tab === 'earnings-hist' && (
+        <div className="card">
+          <div className="panel-hd" style={{ marginBottom: 12 }}>
+            <span className="panel-title">Earnings History — {ticker}</span>
+            <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Last 8 quarters · Beat/Miss · Stock reaction</span>
+          </div>
+          <EarningsHistory symbol={ticker} />
         </div>
       )}
 

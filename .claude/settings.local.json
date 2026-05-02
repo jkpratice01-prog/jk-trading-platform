@@ -58,7 +58,21 @@
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); r=d['results'][0] if d.get\\('results'\\) else {}; print\\(f\\\\\"  {r.get\\('symbol'\\)}: price=\\\\${r.get\\('price'\\)} chg={r.get\\('change_pct'\\)}% vol={r.get\\('volume'\\)}\\\\\"\\)\")",
       "Bash(python3 -c \" import sys,json d=json.load\\(sys.stdin\\) for r in d.get\\('results',[]\\): print\\(f\\\\\" {r['symbol']}: \\\\${r['price']} {r.get\\('change_pct',0\\):+.2f}% vol={r.get\\('volume',0\\):,} signal={r['signal']}\\\\\"\\) \" echo \"--- Movers ---\" curl -s \"http://localhost:8000/api/movers?limit=2\")",
       "Bash(python3 -c \" import sys,json d=json.load\\(sys.stdin\\) for g in d.get\\('gainers',[]\\): print\\(f\\\\\" {g['symbol']}: \\\\${g.get\\('regularMarketPrice'\\)} {g.get\\('regularMarketChangePercent',0\\):+.2f}% vol={g.get\\('regularMarketVolume',0\\):,}\\\\\"\\) \")",
-      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('news count:', len\\(d.get\\('news',[]\\)\\), '| first:', d.get\\('news',[{}]\\)[0].get\\('title',''\\)[:60]\\)\")"
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('news count:', len\\(d.get\\('news',[]\\)\\), '| first:', d.get\\('news',[{}]\\)[0].get\\('title',''\\)[:60]\\)\")",
+      "Bash(python *)",
+      "Bash(python3 *)",
+      "Bash(find . -name requirements*.txt -not -path './.git/*')",
+      "Bash(lsof *)",
+      "Bash(node -e \"const lc = require\\('./node_modules/lightweight-charts/dist/lightweight-charts.standalone.development.js'\\); console.log\\(Object.keys\\(lc\\).filter\\(k => k.toLowerCase\\(\\).includes\\('tick'\\) || k.toLowerCase\\(\\).includes\\('time'\\)\\)\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(node --input-type=module)",
+      "Bash(2>&1)",
+      "Bash(git *)",
+      "Bash(pkill -f \"uvicorn server.main\")",
+      "Bash(pkill -f \"vite\")",
+      "Bash(xxd /Users/janardhankarnati/IdeaProjects/jk-trading-platform/start.sh)",
+      "Bash(echo \"Frontend PID: $!\")",
+      "Bash(node *)"
     ]
   }
 }

@@ -30,11 +30,62 @@ from server.services.internals       import get_internals
 from server.services.trading         import (
     get_account, get_positions, get_orders, place_order, cancel_order, close_position
 )
+try:
+    from server.services.institutions   import get_institutional_holders, get_major_holders
+    print("Institutions imported successfully")
+except Exception as e:
+    print(f"Failed to import institutions: {e}")
+
+try:
+    from server.services.institutional_flow import get_institutional_flow, get_dark_pool_activity, get_block_trades
+    print("Institutional flow imported successfully")
+except Exception as e:
+    print(f"Failed to import institutional flow: {e}")
+
+try:
+    from server.services.earnings_flow import scan_earnings_flow
+    print("Earnings flow imported successfully")
+except Exception as e:
+    print(f"Failed to import earnings flow: {e}")
+
+try:
+    from server.services.deep_info import get_deep_info
+    print("Deep info imported successfully")
+except Exception as e:
+    print(f"Failed to import deep info: {e}")
+
+try:
+    from server.services.economic_calendar import get_calendar
+    from server.services.earnings_history  import get_earnings_history
+    print("Calendar & earnings history imported successfully")
+except Exception as e:
+    print(f"Failed to import calendar/earnings history: {e}")
+
+try:
+    from server.services.crypto import get_crypto_overview, get_top_coins, get_coin_info
+    print("Crypto service imported successfully")
+except Exception as e:
+    print(f"Failed to import crypto service: {e}")
+
+try:
+    from server.services.holdings import (
+        get_holdings, get_holding_detail, add_holding, update_holding,
+        delete_holding, get_price_history, refresh_all_prices, start_price_refresh_job
+    )
+    print("Holdings imported successfully")
+except Exception as e:
+    print(f"Failed to import holdings: {e}")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    try:
+        from server.services.holdings import init_tables as holdings_init, start_price_refresh_job
+        holdings_init()
+        start_price_refresh_job(3600)
+    except Exception as e:
+        print(f"Holdings init error: {e}")
     yield
 
 
@@ -733,3 +784,162 @@ def delete_journal_entry(trade_id: int):
     conn.commit()
     conn.close()
     return {"ok": True}
+
+
+# ── Economic calendar ─────────────────────────────────────────────────────────
+
+@app.get("/api/calendar")
+async def economic_calendar(days_ahead: int = 60):
+    result = await asyncio.to_thread(get_calendar, days_ahead)
+    return result
+
+
+# ── Earnings history ──────────────────────────────────────────────────────────
+
+@app.get("/api/stock/{symbol}/earnings-history")
+async def earnings_history(symbol: str, quarters: int = 8):
+    result = await asyncio.to_thread(get_earnings_history, symbol.upper(), quarters)
+    return result
+
+
+# ── Deep stock info (fundamentals, levels, short interest, expected move) ────
+
+@app.get("/api/stock/{symbol}/deep")
+async def stock_deep(symbol: str):
+    result = await asyncio.to_thread(get_deep_info, symbol.upper())
+    return result
+
+
+# ── Pre-earnings institutional flow ──────────────────────────────────────────
+
+@app.get("/api/earnings-flow/scan")
+async def earnings_flow_scan(days_ahead: int = 21, limit: int = 60):
+    """Scan for institutional pre-earnings positioning: call buying surges, Vol/OI spikes, stock volume."""
+    result = await asyncio.to_thread(scan_earnings_flow, days_ahead, limit)
+    return result
+
+
+# ── Institutional holders ─────────────────────────────────────────────────────
+
+@app.get("/api/institutions/{symbol}/holders")
+def institutional_holders(symbol: str):
+    result = get_institutional_holders(symbol.upper())
+    return result
+
+
+@app.get("/api/institutions/{symbol}/major")
+def major_holders(symbol: str):
+    result = get_major_holders(symbol.upper())
+    return result
+
+
+# ── Institutional flow tracker ────────────────────────────────────────────────
+
+@app.get("/api/institutional-flow")
+async def institutional_flow_scan(limit: int = 50):
+    """Scan for institutional flow across major symbols."""
+    result = await asyncio.to_thread(get_institutional_flow, None, limit)
+    return result
+
+
+@app.get("/api/institutional-flow/{symbol}")
+async def institutional_flow_symbol(symbol: str):
+    """Get institutional flow data for a specific symbol."""
+    result = await asyncio.to_thread(get_institutional_flow, symbol.upper(), 1)
+    flows = result.get('flows', [])
+    return flows[0] if flows else {"symbol": symbol.upper(), "error": "No unusual activity detected"}
+
+
+# ── Crypto hub ────────────────────────────────────────────────────────────────
+
+@app.get("/api/crypto/overview")
+async def crypto_overview():
+    """Global crypto market stats + Fear & Greed index."""
+    result = await asyncio.to_thread(get_crypto_overview)
+    return result
+
+
+@app.get("/api/crypto/top")
+async def crypto_top(limit: int = 50):
+    """Top coins by market cap."""
+    result = await asyncio.to_thread(get_top_coins, limit)
+    return result
+
+
+@app.get("/api/crypto/{symbol}/info")
+async def crypto_coin_info(symbol: str):
+    """Detailed info for a single coin (BTC, ETH, bitcoin, etc.)."""
+    result = await asyncio.to_thread(get_coin_info, symbol)
+    if not result:
+        raise HTTPException(404, f"Coin not found: {symbol}")
+    return result
+
+
+# ── Holdings tracker ──────────────────────────────────────────────────────────
+
+class HoldingBody(BaseModel):
+    symbol:         str
+    purchased_price: float
+    qty:            float = 1.0
+    provider:       str = "Manual"
+    asset_type:     str = "stock"
+    purchased_date: str | None = None
+    notes:          str | None = None
+
+
+class HoldingUpdateBody(BaseModel):
+    symbol:         str | None = None
+    name:           str | None = None
+    asset_type:     str | None = None
+    provider:       str | None = None
+    purchased_price: float | None = None
+    qty:            float | None = None
+    purchased_date: str | None = None
+    notes:          str | None = None
+
+
+@app.get("/api/holdings")
+async def holdings_list():
+    result = await asyncio.to_thread(get_holdings)
+    return {"holdings": result}
+
+
+@app.post("/api/holdings")
+async def holdings_add(body: HoldingBody):
+    result = await asyncio.to_thread(
+        add_holding,
+        body.symbol, body.purchased_price, body.qty,
+        body.provider, body.asset_type, body.purchased_date, body.notes
+    )
+    return result
+
+
+@app.put("/api/holdings/{holding_id}")
+async def holdings_update(holding_id: int, body: HoldingUpdateBody):
+    kwargs = body.model_dump(exclude_none=True)
+    result = await asyncio.to_thread(update_holding, holding_id, **kwargs)
+    return result
+
+
+@app.delete("/api/holdings/{holding_id}")
+async def holdings_delete(holding_id: int):
+    result = await asyncio.to_thread(delete_holding, holding_id)
+    return result
+
+
+@app.get("/api/holdings/{symbol}/detail")
+async def holdings_detail(symbol: str):
+    result = await asyncio.to_thread(get_holding_detail, symbol.upper())
+    return result
+
+
+@app.get("/api/holdings/{symbol}/history")
+async def holdings_history(symbol: str, days: int = 30):
+    result = await asyncio.to_thread(get_price_history, symbol.upper(), days)
+    return {"history": result}
+
+
+@app.post("/api/holdings/refresh")
+async def holdings_refresh():
+    result = await asyncio.to_thread(refresh_all_prices)
+    return result

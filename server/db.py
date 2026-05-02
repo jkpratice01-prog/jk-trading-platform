@@ -111,6 +111,35 @@ CREATE TABLE IF NOT EXISTS trade_journal (
     created_at  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_journal ON trade_journal(symbol, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS holdings (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    symbol          TEXT    NOT NULL,
+    name            TEXT,
+    asset_type      TEXT    DEFAULT 'stock',
+    provider        TEXT    DEFAULT 'Manual',
+    purchased_price REAL    NOT NULL,
+    qty             REAL    NOT NULL DEFAULT 1,
+    purchased_date  TEXT,
+    notes           TEXT,
+    current_price   REAL,
+    price_updated_at TEXT,
+    created_at      TEXT    DEFAULT (datetime('now')),
+    updated_at      TEXT    DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_holdings ON holdings(symbol);
+
+CREATE TABLE IF NOT EXISTS holdings_price_history (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    symbol      TEXT    NOT NULL,
+    price       REAL,
+    day_high    REAL,
+    day_low     REAL,
+    volume      INTEGER,
+    change_pct  REAL,
+    recorded_at TEXT    DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_hph ON holdings_price_history(symbol, recorded_at DESC);
 """
 
 def get_db():

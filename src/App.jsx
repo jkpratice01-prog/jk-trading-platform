@@ -17,24 +17,36 @@ import TradingTab       from './components/TradingTab.jsx'
 import TradeJournal     from './components/TradeJournal.jsx'
 import StrategyBuilder      from './components/StrategyBuilder.jsx'
 import NewsImpactScanner    from './components/NewsImpactScanner.jsx'
+import InstitutionalTracker from './components/InstitutionalTracker.jsx'
+import InstitutionalFlowTracker from './components/InstitutionalFlowTracker.jsx'
+import EarningsFlowScanner from './components/EarningsFlowScanner.jsx'
+import EconomicCalendar   from './components/EconomicCalendar.jsx'
+import PositionSizer      from './components/PositionSizer.jsx'
+import CryptoHub          from './components/CryptoHub.jsx'
 
 import { getQuotes, getDayGainers, getDayLosers } from './api/yahooFinance.js'
 import { nowLabel } from './utils/helpers.js'
 
 const TABS = [
-  { id: 'dashboard', label: 'Dashboard'  },
-  { id: 'analyzer',  label: 'Analyzer'   },
-  { id: 'news-impact', label: '📰 News Impact' },
-  { id: 'scanner',   label: 'Scanner'    },
-  { id: 'premarket', label: 'Pre-Market' },
-  { id: 'flow',      label: 'Flow'       },
-  { id: 'intraday',  label: 'Intraday'   },
-  { id: 'trading',   label: 'Trading'    },
-  { id: 'journal',   label: 'Journal'    },
-  { id: 'strategy',  label: 'Strategy'   },
-  { id: 'compare',   label: 'Compare'    },
-  { id: 'tracker',   label: 'Tracker'    },
-  { id: 'export',    label: 'Export'     },
+  { id: 'dashboard',    label: 'Dashboard'        },
+  { id: 'analyzer',    label: 'Analyzer'         },
+  { id: 'crypto',      label: '₿ Crypto'         },
+  { id: 'calendar',    label: '📅 Calendar'      },
+  { id: 'risk',        label: '⚖️ Risk Sizer'    },
+  { id: 'news-impact', label: '📰 News Impact'   },
+  { id: 'scanner',     label: 'Scanner'          },
+  { id: 'premarket',   label: 'Pre-Market'       },
+  { id: 'flow',        label: 'Flow'             },
+  { id: 'earnings-flow', label: '📅 Earnings Flow' },
+  { id: 'intraday',    label: 'Intraday'         },
+  { id: 'strategy',    label: 'Strategy'         },
+  { id: 'compare',     label: 'Compare'          },
+  { id: 'tracker',     label: 'Tracker'          },
+  { id: 'institutional', label: 'Institutions'   },
+  { id: 'institutional-flow', label: 'Inst Flow' },
+  { id: 'trading',     label: 'Trading'          },
+  { id: 'journal',     label: 'Journal'          },
+  { id: 'export',      label: 'Export'           },
 ]
 
 const REFRESH_OPTIONS = [
@@ -188,57 +200,107 @@ export default function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       <nav style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 16px', height: '46px', flexShrink: 0,
+        flexShrink: 0,
         background: 'var(--bg-secondary)',
         borderBottom: '0.5px solid var(--border-subtle)',
         zIndex: 10,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <span style={{
-            fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)',
-            marginRight: '8px', letterSpacing: '-0.02em',
-          }}>
-            📈 Trading Platform
-          </span>
+        {/* Row 1: logo + controls */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '0 16px', height: '40px',
+          borderBottom: '0.5px solid var(--border-subtle)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{
+              fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)',
+              marginRight: '4px', letterSpacing: '-0.02em',
+            }}>
+              📈 Trading Platform
+            </span>
 
-          {/* Theme toggle */}
-          <button
-            onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
-            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            style={{
-              fontSize: '14px', padding: '3px 7px', border: '0.5px solid var(--border-subtle)',
-              borderRadius: 'var(--r-md)', cursor: 'pointer',
-              background: 'var(--bg-tertiary)', color: 'var(--text-secondary)',
-              lineHeight: 1, marginRight: '2px',
-            }}
-          >
-            {theme === 'dark' ? '☀️' : '🌙'}
-          </button>
+            {/* Theme toggle */}
+            <button
+              onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              style={{
+                fontSize: '14px', padding: '3px 7px', border: '0.5px solid var(--border-subtle)',
+                borderRadius: 'var(--r-md)', cursor: 'pointer',
+                background: 'var(--bg-tertiary)', color: 'var(--text-secondary)',
+                lineHeight: 1,
+              }}
+            >
+              {theme === 'dark' ? '☀️' : '🌙'}
+            </button>
 
-          {/* Font size toggle */}
-          <button
-            onClick={() => setFontSize(s => s === 'normal' ? 'large' : 'normal')}
-            title={fontSize === 'normal' ? 'Increase text size' : 'Decrease text size'}
-            style={{
-              fontSize: fontSize === 'normal' ? '11px' : '13px',
-              fontWeight: 700, padding: '3px 7px',
-              border: '0.5px solid var(--border-subtle)',
-              borderRadius: 'var(--r-md)', cursor: 'pointer',
-              background: fontSize === 'large' ? 'var(--blue-dim)' : 'var(--bg-tertiary)',
-              color: fontSize === 'large' ? 'var(--blue)' : 'var(--text-secondary)',
-              lineHeight: 1, marginRight: '8px', letterSpacing: '-0.02em',
-            }}
-          >
-            {fontSize === 'normal' ? 'A+' : 'A−'}
-          </button>
+            {/* Font size toggle */}
+            <button
+              onClick={() => setFontSize(s => s === 'normal' ? 'large' : 'normal')}
+              title={fontSize === 'normal' ? 'Increase text size' : 'Decrease text size'}
+              style={{
+                fontSize: fontSize === 'normal' ? '11px' : '13px',
+                fontWeight: 700, padding: '3px 7px',
+                border: '0.5px solid var(--border-subtle)',
+                borderRadius: 'var(--r-md)', cursor: 'pointer',
+                background: fontSize === 'large' ? 'var(--blue-dim)' : 'var(--bg-tertiary)',
+                color: fontSize === 'large' ? 'var(--blue)' : 'var(--text-secondary)',
+                lineHeight: 1, letterSpacing: '-0.02em',
+              }}
+            >
+              {fontSize === 'normal' ? 'A+' : 'A−'}
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <PriceAlerts />
+            {lastUpdated && (
+              <span style={{ fontSize: '10px', color: 'var(--text-tertiary)' }}>
+                Updated {lastUpdated}
+              </span>
+            )}
+            {countdown > 0 && (
+              <span style={{
+                fontSize: '10px', fontFamily: 'var(--font-mono)',
+                color: countdown <= 5 ? 'var(--amber-text)' : 'var(--text-tertiary)',
+                minWidth: 28, textAlign: 'right',
+              }}>
+                {countdown}s
+              </span>
+            )}
+            <select
+              value={refreshMins}
+              onChange={e => setRefreshMins(Number(e.target.value))}
+              style={{ fontSize: '11px', padding: '3px 8px' }}
+            >
+              {REFRESH_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <button
+              className="btn btn-primary"
+              onClick={fetchMarket}
+              disabled={loading}
+              style={{ fontSize: '11px', padding: '4px 12px', minWidth: 72 }}
+            >
+              {loading ? 'Loading...' : '↻ Refresh'}
+            </button>
+          </div>
+        </div>
+
+        {/* Row 2: scrollable tab bar */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '2px',
+          padding: '0 12px', height: '34px',
+          overflowX: 'auto', overflowY: 'hidden',
+          scrollbarWidth: 'none',
+        }}>
           {TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               style={{
-                fontSize: '12px', padding: '5px 13px',
-                borderRadius: 'var(--r-md)', border: 'none', cursor: 'pointer',
+                fontSize: '11px', padding: '4px 11px', whiteSpace: 'nowrap',
+                borderRadius: 'var(--r-md)', border: 'none', cursor: 'pointer', flexShrink: 0,
                 background: activeTab === tab.id ? 'var(--bg-tertiary)' : 'transparent',
                 color: activeTab === tab.id ? 'var(--text-primary)' : 'var(--text-secondary)',
                 fontWeight: activeTab === tab.id ? 500 : 400,
@@ -248,41 +310,6 @@ export default function App() {
               {tab.label}
             </button>
           ))}
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <PriceAlerts />
-          {lastUpdated && (
-            <span style={{ fontSize: '10px', color: 'var(--text-tertiary)' }}>
-              Updated {lastUpdated}
-            </span>
-          )}
-          {countdown > 0 && (
-            <span style={{
-              fontSize: '10px', fontFamily: 'var(--font-mono)',
-              color: countdown <= 5 ? 'var(--amber-text)' : 'var(--text-tertiary)',
-              minWidth: 28, textAlign: 'right',
-            }}>
-              {countdown}s
-            </span>
-          )}
-          <select
-            value={refreshMins}
-            onChange={e => setRefreshMins(Number(e.target.value))}
-            style={{ fontSize: '11px', padding: '3px 8px' }}
-          >
-            {REFRESH_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-          <button
-            className="btn btn-primary"
-            onClick={fetchMarket}
-            disabled={loading}
-            style={{ fontSize: '11px', padding: '4px 12px', minWidth: 72 }}
-          >
-            {loading ? 'Loading...' : '↻ Refresh'}
-          </button>
         </div>
       </nav>
 
@@ -313,6 +340,15 @@ export default function App() {
         {activeTab === 'flow' && (
           <FlowScannerTab onAnalyze={openAnalyzer} />
         )}
+        {activeTab === 'earnings-flow' && (
+          <EarningsFlowScanner onAnalyze={openAnalyzer} />
+        )}
+        {activeTab === 'calendar' && (
+          <EconomicCalendar onAnalyze={openAnalyzer} />
+        )}
+        {activeTab === 'risk' && (
+          <PositionSizer />
+        )}
         {activeTab === 'intraday' && (
           <IntradayScanner onAnalyze={openAnalyzer} />
         )}
@@ -330,6 +366,15 @@ export default function App() {
         )}
         {activeTab === 'tracker' && (
           <Tracker onAnalyze={openAnalyzer} />
+        )}
+        {activeTab === 'institutional' && (
+          <InstitutionalTracker symbol={analyzeTicker} />
+        )}
+        {activeTab === 'institutional-flow' && (
+          <InstitutionalFlowTracker onAnalyze={openAnalyzer} />
+        )}
+        {activeTab === 'crypto' && (
+          <CryptoHub onAnalyze={openAnalyzer} />
         )}
         {activeTab === 'export' && (
           <ExportTab initialPlan={exportPlan} />

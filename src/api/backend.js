@@ -2,9 +2,11 @@
 // All calls use relative /api/* paths (proxied by Vite to localhost:8000).
 
 async function apiFetch(path, options = {}) {
+  const timeout = options._timeout ?? 15000
+  delete options._timeout
   const res = await fetch(path, {
     headers: { 'Content-Type': 'application/json', ...options.headers },
-    signal: AbortSignal.timeout(15000),   // 15s max — prevents infinite loading
+    signal: AbortSignal.timeout(timeout),
     ...options,
   })
   if (!res.ok) throw new Error(`Backend ${res.status}: ${path}`)
@@ -216,4 +218,90 @@ export async function backendCloseJournalTrade(tradeId, exitPrice, exitTime = nu
 
 export async function backendDeleteJournalEntry(tradeId) {
   return apiFetch(`/api/journal/${tradeId}`, { method: 'DELETE' })
+}
+
+// ── Economic calendar ─────────────────────────────────────────────────────────
+export async function backendCalendar(daysAhead = 60) {
+  return apiFetch(`/api/calendar?days_ahead=${daysAhead}`, { _timeout: 90000 })
+}
+
+// ── Earnings history ──────────────────────────────────────────────────────────
+export async function backendEarningsHistory(symbol, quarters = 8) {
+  return apiFetch(`/api/stock/${symbol}/earnings-history?quarters=${quarters}`, { _timeout: 30000 })
+}
+
+// ── Deep stock info ───────────────────────────────────────────────────────────
+export async function backendDeepInfo(symbol) {
+  return apiFetch(`/api/stock/${symbol}/deep`, { _timeout: 30000 })
+}
+
+// ── Pre-earnings institutional flow ──────────────────────────────────────────
+export async function backendEarningsFlow(daysAhead = 21) {
+  return apiFetch(`/api/earnings-flow/scan?days_ahead=${daysAhead}`, { _timeout: 120000 })
+}
+
+// ── Institutional holders ─────────────────────────────────────────────────────
+export async function backendInstitutionalHolders(symbol) {
+  return apiFetch(`/api/institutions/${symbol}/holders`)
+}
+
+export async function backendMajorHolders(symbol) {
+  return apiFetch(`/api/institutions/${symbol}/major`)
+}
+
+// ── Institutional flow tracker ────────────────────────────────────────────────
+export async function backendInstitutionalFlow(limit = 50) {
+  return apiFetch(`/api/institutional-flow?limit=${limit}`)
+}
+
+export async function backendInstitutionalFlowSymbol(symbol) {
+  return apiFetch(`/api/institutional-flow/${symbol}`)
+}
+
+// ── Crypto hub ────────────────────────────────────────────────────────────────
+export async function backendCryptoOverview() {
+  return apiFetch('/api/crypto/overview')
+}
+
+export async function backendCryptoTop(limit = 50) {
+  return apiFetch(`/api/crypto/top?limit=${limit}`, { _timeout: 30000 })
+}
+
+export async function backendCryptoInfo(symbol) {
+  return apiFetch(`/api/crypto/${symbol}/info`, { _timeout: 20000 })
+}
+
+// ── Holdings tracker ──────────────────────────────────────────────────────────
+export async function backendGetHoldings() {
+  return apiFetch('/api/holdings', { _timeout: 15000 })
+}
+
+export async function backendAddHolding(data) {
+  return apiFetch('/api/holdings', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function backendUpdateHolding(id, data) {
+  return apiFetch(`/api/holdings/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function backendDeleteHolding(id) {
+  return apiFetch(`/api/holdings/${id}`, { method: 'DELETE' })
+}
+
+export async function backendHoldingDetail(symbol) {
+  return apiFetch(`/api/holdings/${symbol}/detail`, { _timeout: 20000 })
+}
+
+export async function backendHoldingHistory(symbol, days = 30) {
+  return apiFetch(`/api/holdings/${symbol}/history?days=${days}`)
+}
+
+export async function backendRefreshHoldings() {
+  return apiFetch('/api/holdings/refresh', { method: 'POST', _timeout: 60000 })
 }

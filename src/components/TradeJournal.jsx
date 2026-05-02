@@ -1,5 +1,6 @@
 import { useState, useEffect, Fragment } from 'react'
 import { backendJournal, backendAddJournalEntry, backendCloseJournalTrade, backendDeleteJournalEntry } from '../api/backend.js'
+import HoldingsTracker from './HoldingsTracker.jsx'
 
 const EMPTY_FORM = {
   symbol: '', side: 'buy', qty: '', entry_price: '', exit_price: '',
@@ -16,7 +17,7 @@ function PnlCell({ pnl, pnl_pct }) {
   )
 }
 
-export default function TradeJournal({ onAnalyze }) {
+function TradeLog({ onAnalyze }) {
   const [trades,    setTrades]    = useState([])
   const [loading,   setLoading]   = useState(false)
   const [showForm,  setShowForm]  = useState(false)
@@ -268,6 +269,30 @@ export default function TradeJournal({ onAnalyze }) {
           <div style={{ fontSize: 11 }}>Click "+ Log Trade" to add your first entry</div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Wrapper with sub-tabs ─────────────────────────────────────────────────────
+export default function TradeJournal({ onAnalyze }) {
+  const [subTab, setSubTab] = useState('holdings')
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', gap: 6, borderBottom: '1px solid var(--border-subtle)', paddingBottom: 8 }}>
+        {[
+          { id: 'holdings', label: '📊 Holdings Tracker' },
+          { id: 'trades',   label: '📓 Trade Log'        },
+        ].map(({ id, label }) => (
+          <button key={id}
+            className={`btn${subTab === id ? ' btn-primary' : ''}`}
+            onClick={() => setSubTab(id)}
+            style={{ fontSize: 12 }}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {subTab === 'holdings' && <HoldingsTracker onAnalyze={onAnalyze} />}
+      {subTab === 'trades'   && <TradeLog onAnalyze={onAnalyze} />}
     </div>
   )
 }
