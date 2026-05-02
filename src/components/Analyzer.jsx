@@ -7,6 +7,7 @@ import MultiTimeframe   from './MultiTimeframe.jsx'
 import PivotLevels      from './PivotLevels.jsx'
 import AnalyzerInsights  from './AnalyzerInsights.jsx'
 import EarningsHistory   from './EarningsHistory.jsx'
+import OptionsDetail     from './OptionsDetail.jsx'
 
 export default function Analyzer({ initialTicker, onExport }) {
   const [ticker,   setTicker]   = useState(initialTicker || 'AAPL')
@@ -65,7 +66,7 @@ export default function Analyzer({ initialTicker, onExport }) {
 
         {/* Sub-tabs */}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
-          {[['chart','Chart'],['vwap','VWAP'],['multi-tf','Multi-TF'],['pivots','Pivots'],['earnings-hist','Earnings History']].map(([id, label]) => (
+          {[['chart','Chart'],['options','Options'],['vwap','VWAP'],['multi-tf','Multi-TF'],['pivots','Pivots'],['earnings-hist','Earnings History']].map(([id, label]) => (
             <button key={id} className={`btn${tab === id ? ' btn-primary' : ''}`}
               onClick={() => setTab(id)} style={{ fontSize: 11 }}>
               {label}
@@ -135,6 +136,15 @@ export default function Analyzer({ initialTicker, onExport }) {
           </div>
           <MultiTimeframe symbol={ticker} />
         </div>
+      )}
+
+      {/* ── Options tab ────────────────────────────────── */}
+      {tab === 'options' && (
+        <OptionsDetail
+          sym={ticker}
+          price={quote?.regularMarketPrice}
+          closes={[]}
+        />
       )}
 
       {/* ── Pivots tab ─────────────────────────────────── */}

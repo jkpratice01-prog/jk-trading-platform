@@ -72,7 +72,8 @@
       "Bash(pkill -f \"vite\")",
       "Bash(xxd /Users/janardhankarnati/IdeaProjects/jk-trading-platform/start.sh)",
       "Bash(echo \"Frontend PID: $!\")",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(server/venv/bin/python3 *)"
     ]
   }
 }

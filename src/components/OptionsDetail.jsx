@@ -306,11 +306,14 @@ export default function OptionsDetail({ sym, price, closes, onClose, refreshKey 
       <div style={{ display: 'flex', gap: 4, marginBottom: 10, flexWrap: 'wrap' }}>
         {[
           { id: 'summary',    label: 'Summary' },
+          { id: 'gex',        label: `GEX` },
+          { id: 'magnets',    label: 'Magnets' },
+          { id: 'clusters',   label: 'Exp Clusters' },
+          { id: 'unusual',    label: `Unusual (${unusual.length})` },
           { id: 'calls',      label: `Calls (${topCalls.length})` },
           { id: 'puts',       label: `Puts (${topPuts.length})` },
           { id: 'oi-wall',    label: 'OI Wall' },
           { id: 'oi-changes', label: `OI Changes${oiChanges?.totalChanged ? ` (${oiChanges.totalChanged})` : ''}` },
-          { id: 'unusual',    label: `Unusual (${unusual.length})` },
           { id: 'skew',       label: 'Vol Skew' },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
@@ -478,12 +481,214 @@ export default function OptionsDetail({ sym, price, closes, onClose, refreshKey 
         </div>
       )}
 
+      {/* ── GEX tab ────────────────────────────────────────────────────────── */}
+      {tab === 'gex' && (() => {
+        const gex     = chain.gex || {}
+        const rows    = gex.byStrike || []
+        const spot    = underlyingPrice || price
+        const flip    = gex.flipPoint
+        const netGex  = gex.totalNetGex
+        if (!rows.length) return <div style={{ color:'var(--text-tertiary)', fontSize:11, padding:12 }}>No gamma data — IV required for all strikes.</div>
+
+        const maxAbs  = Math.max(...rows.map(r => Math.abs(r.netGex)), 0.001)
+        const barMax  = 160  // px
+
+        return (
+          <div>
+            <div style={{ display:'flex', gap:16, marginBottom:12, flexWrap:'wrap' }}>
+              <div className="card" style={{ padding:'8px 14px', minWidth:130 }}>
+                <div style={{ fontSize:9, color:'var(--text-tertiary)', textTransform:'uppercase' }}>Total Net GEX</div>
+                <div style={{ fontSize:15, fontWeight:700, fontFamily:'var(--font-mono)', color: netGex >= 0 ? 'var(--green-text)' : 'var(--red-text)' }}>
+                  {netGex >= 0 ? '+' : ''}{netGex}M
+                </div>
+              </div>
+              <div className="card" style={{ padding:'8px 14px', minWidth:130 }}>
+                <div style={{ fontSize:9, color:'var(--text-tertiary)', textTransform:'uppercase' }}>GEX Flip Point</div>
+                <div style={{ fontSize:15, fontWeight:700, fontFamily:'var(--font-mono)', color:'var(--amber-text)' }}>
+                  {flip ? `$${flip}` : '—'}
+                </div>
+              </div>
+              <div className="card" style={{ padding:'8px 14px', flex:1, minWidth:200 }}>
+                <div style={{ fontSize:9, color:'var(--text-tertiary)', textTransform:'uppercase', marginBottom:4 }}>Interpretation</div>
+                <div style={{ fontSize:10, color:'var(--text-secondary)', lineHeight:1.5 }}>
+                  {netGex >= 0
+                    ? '📗 Positive GEX — dealers are net long gamma. They buy dips and sell rips, dampening volatility.'
+                    : '📕 Negative GEX — dealers are net short gamma. They amplify moves in both directions — expect higher volatility.'}
+                  {flip ? ` GEX flips at $${flip}.` : ''}
+                </div>
+              </div>
+            </div>
+
+            {/* Bar chart by strike */}
+            <div style={{ overflowY:'auto', maxHeight:420 }}>
+              {[...rows].reverse().map(r => {
+                const isSpot   = spot && Math.abs(r.strike - spot) < 1.5
+                const isFlip   = flip && r.strike === flip
+                const barW     = Math.round(Math.abs(r.netGex) / maxAbs * barMax)
+                const positive = r.netGex >= 0
+                return (
+                  <div key={r.strike} style={{ display:'flex', alignItems:'center', gap:6, marginBottom:2,
+                    background: isSpot ? 'var(--amber-dim)' : isFlip ? 'var(--bg-tertiary)' : 'transparent',
+                    borderRadius:4, padding:'1px 4px' }}>
+                    <span style={{ width:50, fontSize:9, fontFamily:'var(--font-mono)', color: isSpot ? 'var(--amber-text)' : 'var(--text-tertiary)', textAlign:'right', flexShrink:0 }}>
+                      {isSpot ? '▶' : ''}{r.strike}
+                    </span>
+                    {/* Negative side (left) */}
+                    <div style={{ width:barMax, display:'flex', justifyContent:'flex-end' }}>
+                      {!positive && <div style={{ width:barW, height:10, background:'#ef4444', borderRadius:'2px 0 0 2px', opacity:0.8 }} />}
+                    </div>
+                    {/* Positive side (right) */}
+                    <div style={{ width:barMax }}>
+                      {positive && <div style={{ width:barW, height:10, background:'#22c55e', borderRadius:'0 2px 2px 0', opacity:0.8 }} />}
+                    </div>
+                    <span style={{ fontSize:9, fontFamily:'var(--font-mono)', color: positive ? 'var(--green-text)' : 'var(--red-text)', width:54 }}>
+                      {r.netGex >= 0 ? '+' : ''}{r.netGex}M
+                    </span>
+                    {isFlip && <span style={{ fontSize:8, color:'var(--amber-text)', fontWeight:700 }}>FLIP</span>}
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ display:'flex', justifyContent:'center', gap:24, marginTop:8, fontSize:9, color:'var(--text-tertiary)' }}>
+              <span style={{ color:'#ef4444' }}>◀ Negative (dealers short γ — amplifies)</span>
+              <span style={{ color:'#22c55e' }}>Positive (dealers long γ — dampens) ▶</span>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ── Strike Magnets tab ─────────────────────────────────────────────── */}
+      {tab === 'magnets' && (() => {
+        const m    = chain.magnets || {}
+        const spot = underlyingPrice || price
+        if (!m.callWall && !m.putWall) return <div style={{ color:'var(--text-tertiary)', fontSize:11, padding:12 }}>No magnet data available.</div>
+
+        const MagnetCard = ({ label, data, color, icon, desc }) => data ? (
+          <div className="card" style={{ padding:'10px 14px', borderTop:`2px solid ${color}` }}>
+            <div style={{ fontSize:9, color:'var(--text-tertiary)', textTransform:'uppercase', marginBottom:4 }}>{icon} {label}</div>
+            <div style={{ fontSize:18, fontWeight:700, fontFamily:'var(--font-mono)', color }}>${data.strike}</div>
+            <div style={{ fontSize:10, color:'var(--text-secondary)', marginTop:2 }}>{fmtK(data.oi)} OI · {spot ? `${((data.strike - spot) / spot * 100).toFixed(1)}% from spot` : ''}</div>
+            {desc && <div style={{ fontSize:9, color:'var(--text-tertiary)', marginTop:4, lineHeight:1.4 }}>{desc}</div>}
+          </div>
+        ) : null
+
+        return (
+          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:10 }}>
+              <MagnetCard label="Call Wall"  data={m.callWall}  color="#ef4444" icon="🧱" desc="Highest call OI above spot — dealers' gamma hedge creates resistance here" />
+              <MagnetCard label="Put Wall"   data={m.putWall}   color="#22c55e" icon="🛡" desc="Highest put OI below spot — strong support zone, dealers buy here on drops" />
+              <MagnetCard label="Gamma Pin"  data={m.gammaPin}  color="#f97316" icon="📌" desc="Highest combined OI — price gravitates to this strike near expiry (pin risk)" />
+              {m.maxPain && (
+                <div className="card" style={{ padding:'10px 14px', borderTop:'2px solid var(--amber)' }}>
+                  <div style={{ fontSize:9, color:'var(--text-tertiary)', textTransform:'uppercase', marginBottom:4 }}>⚡ Max Pain</div>
+                  <div style={{ fontSize:18, fontWeight:700, fontFamily:'var(--font-mono)', color:'var(--amber-text)' }}>${m.maxPain}</div>
+                  <div style={{ fontSize:9, color:'var(--text-tertiary)', marginTop:4, lineHeight:1.4 }}>Strike where total option buyer losses are maximized — market makers may pin price here near expiry</div>
+                </div>
+              )}
+            </div>
+
+            {/* Resistance / Support ladder */}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+              <div className="card" style={{ padding:'10px 14px' }}>
+                <div style={{ fontSize:10, fontWeight:700, color:'var(--red-text)', marginBottom:8 }}>📛 Resistance Strikes</div>
+                {(m.resistance || []).map(r => (
+                  <div key={r.strike} style={{ display:'flex', justifyContent:'space-between', borderBottom:'0.5px solid var(--border-subtle)', padding:'4px 0', fontSize:11 }}>
+                    <span style={{ color:'var(--text-tertiary)', fontSize:10 }}>{r.label}</span>
+                    <span style={{ fontFamily:'var(--font-mono)', fontWeight:600 }}>${r.strike}</span>
+                    <span style={{ color:'var(--text-tertiary)', fontSize:10 }}>{fmtK(r.oi)} OI</span>
+                  </div>
+                ))}
+              </div>
+              <div className="card" style={{ padding:'10px 14px' }}>
+                <div style={{ fontSize:10, fontWeight:700, color:'var(--green-text)', marginBottom:8 }}>🛡 Support Strikes</div>
+                {(m.support || []).map(s => (
+                  <div key={s.strike} style={{ display:'flex', justifyContent:'space-between', borderBottom:'0.5px solid var(--border-subtle)', padding:'4px 0', fontSize:11 }}>
+                    <span style={{ color:'var(--text-tertiary)', fontSize:10 }}>{s.label}</span>
+                    <span style={{ fontFamily:'var(--font-mono)', fontWeight:600 }}>${s.strike}</span>
+                    <span style={{ color:'var(--text-tertiary)', fontSize:10 }}>{fmtK(s.oi)} OI</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ── Expiration Clusters tab ────────────────────────────────────────── */}
+      {tab === 'clusters' && (() => {
+        const clusters = chain.clusters || []
+        if (!clusters.length) return <div style={{ color:'var(--text-tertiary)', fontSize:11, padding:12 }}>No cluster data.</div>
+
+        const maxPrem = Math.max(...clusters.map(c => c.totalPremium), 1)
+        const catColor = { Weekly:'#f97316', Monthly:'#3b82f6', Quarterly:'#a855f7', LEAP:'#64748b' }
+        const fmtPrem = v => v >= 1e6 ? `$${(v/1e6).toFixed(1)}M` : v >= 1e3 ? `$${(v/1e3).toFixed(0)}K` : `$${v}`
+
+        return (
+          <div>
+            <div style={{ fontSize:10, color:'var(--text-tertiary)', marginBottom:10 }}>
+              Shows where volume, OI and premium are concentrated across expiration dates — indicates where smart money is positioning.
+            </div>
+            <div style={{ overflowX:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
+                <thead><tr>
+                  {['Expiry','DTE','Cat','Call Vol','Put Vol','P/C','Total OI','Premium','Concentration'].map(h => (
+                    <th key={h} style={{ ...thStyle, whiteSpace:'nowrap' }}>{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {clusters.map((c, i) => {
+                    const barW = Math.round(c.totalPremium / maxPrem * 100)
+                    const color = catColor[c.category] || '#64748b'
+                    return (
+                      <tr key={c.expiration} style={{ background: i%2===0?'var(--bg-primary)':'transparent' }}>
+                        <td style={{ ...tdStyle, fontFamily:'var(--font-mono)', fontWeight:600 }}>{c.expiration}</td>
+                        <td style={{ ...tdStyle, color: c.dte <= 7 ? 'var(--red-text)' : c.dte <= 30 ? 'var(--amber-text)' : 'var(--text-secondary)' }}>{c.dte}d</td>
+                        <td style={tdStyle}>
+                          <span style={{ fontSize:8, padding:'1px 5px', borderRadius:8, background:color+'22', color, fontWeight:700 }}>{c.category}</span>
+                        </td>
+                        <td style={{ ...tdStyle, color:'var(--green-text)' }}>{fmtK(c.callVol)}</td>
+                        <td style={{ ...tdStyle, color:'var(--red-text)' }}>{fmtK(c.putVol)}</td>
+                        <td style={{ ...tdStyle, color: (c.pcRatio||1) < 1 ? 'var(--green-text)' : 'var(--red-text)', fontWeight:600 }}>
+                          {c.pcRatio != null ? c.pcRatio.toFixed(2) : '—'}
+                        </td>
+                        <td style={{ ...tdStyle, fontFamily:'var(--font-mono)' }}>{fmtK(c.totalOI)}</td>
+                        <td style={{ ...tdStyle, fontFamily:'var(--font-mono)', fontWeight:600, color:'var(--amber-text)' }}>{fmtPrem(c.totalPremium)}</td>
+                        <td style={{ ...tdStyle, minWidth:100 }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                            <div style={{ width:`${barW}%`, height:6, background:color, borderRadius:3, opacity:0.75, minWidth:2 }} />
+                            <span style={{ fontSize:9, color:'var(--text-tertiary)' }}>{barW}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Unusual activity */}
       {tab === 'unusual' && (
         <div>
-          <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 8 }}>
-            ⚡ Unusual = volume &gt; 1.5× open interest — fresh positioning opened today, not existing holders rolling.
+          {/* Sweep / block summary */}
+          <div style={{ display:'flex', gap:10, marginBottom:10, flexWrap:'wrap' }}>
+            {[
+              { label:'Sweeps', count: (chain.unusual||unusual).filter(u=>u.tradeType==='sweep').length, color:'#f97316', desc:'Aggressive, split across exchanges — directional bet' },
+              { label:'Blocks', count: (chain.unusual||unusual).filter(u=>u.tradeType==='block').length, color:'#3b82f6', desc:'Large negotiated single print — institutional size' },
+              { label:'Total',  count: unusual.length, color:'var(--text-secondary)', desc:'Vol > 1.5× OI — fresh positioning' },
+            ].map(({ label, count, color, desc }) => (
+              <div key={label} className="card" style={{ padding:'6px 12px', display:'flex', gap:8, alignItems:'center' }}>
+                <span style={{ fontSize:14, fontWeight:700, fontFamily:'var(--font-mono)', color }}>{count}</span>
+                <div>
+                  <div style={{ fontSize:10, fontWeight:600, color }}>{label}</div>
+                  <div style={{ fontSize:9, color:'var(--text-tertiary)' }}>{desc}</div>
+                </div>
+              </div>
+            ))}
           </div>
+
           {unusual.length === 0 ? (
             <div style={{ color: 'var(--text-tertiary)', fontSize: 11, padding: '12px 0' }}>
               No unusual activity detected. Try a different expiry date above.
@@ -492,27 +697,38 @@ export default function OptionsDetail({ sym, price, closes, onClose, refreshKey 
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead><tr>
-                  {['Type','Strike','Expiry','Volume','Open int.','Vol/OI','Last','IV','Signal'].map(h=><th key={h} style={thStyle}>{h}</th>)}
+                  {['Type','Classification','Strike','Expiry','Premium','Volume','Open int.','Vol/OI','IV','Signal'].map(h=><th key={h} style={thStyle}>{h}</th>)}
                 </tr></thead>
                 <tbody>
-                  {unusual.map((o, i) => {
-                    const ratio  = (o.volume / o.openInterest).toFixed(1)
-                    const isCall = o.type === 'CALL'
-                    const itm    = underlyingPrice && (isCall ? o.strike < underlyingPrice : o.strike > underlyingPrice)
+                  {(chain.unusual || unusual).slice(0, 40).map((o, i) => {
+                    const ratio    = o.openInterest > 0 ? (o.volume / o.openInterest).toFixed(1) : '—'
+                    const isCall   = (o.type||'').toUpperCase() === 'CALL'
+                    const itm      = underlyingPrice && (isCall ? o.strike < underlyingPrice : o.strike > underlyingPrice)
                     const expLabel = o.expirationLabel || (o.expiration ? fmtExpiry(o.expiration) : '—')
+                    const tt       = o.tradeType || 'retail'
+                    const ttColor  = tt === 'sweep' ? '#f97316' : tt === 'block' ? '#3b82f6' : 'var(--text-tertiary)'
+                    const ttBg     = tt === 'sweep' ? '#f9731622' : tt === 'block' ? '#3b82f622' : 'var(--bg-tertiary)'
+                    const ttIcon   = tt === 'sweep' ? '🌊' : tt === 'block' ? '🧱' : '·'
+                    const prem     = o.premium
+                    const fmtPrem  = v => v >= 1e6 ? `$${(v/1e6).toFixed(1)}M` : v >= 1e3 ? `$${(v/1e3).toFixed(0)}K` : v ? `$${v}` : '—'
                     return (
                       <tr key={i} style={{ background: i%2===0?'var(--bg-primary)':'transparent' }}>
                         <td style={tdStyle}>
                           <span style={{ fontSize:9, padding:'2px 7px', borderRadius:10, fontWeight:600, background:isCall?'var(--green-dim)':'var(--red-dim)', color:isCall?'var(--green-text)':'var(--red-text)' }}>
-                            {o.type}
+                            {(o.type||'').toUpperCase()}
+                          </span>
+                        </td>
+                        <td style={tdStyle}>
+                          <span style={{ fontSize:9, padding:'2px 7px', borderRadius:10, fontWeight:600, background:ttBg, color:ttColor }}>
+                            {ttIcon} {tt}
                           </span>
                         </td>
                         <td style={{...tdStyle, fontWeight:700, fontFamily:'var(--font-mono)', color:isCall?'var(--green-text)':'var(--red-text)'}}>{'$'+o.strike}</td>
                         <td style={{...tdStyle, color:'var(--text-secondary)', fontSize:10}}>{expLabel}</td>
+                        <td style={{...tdStyle, fontFamily:'var(--font-mono)', fontWeight:600, color:'var(--amber-text)'}}>{fmtPrem(prem)}</td>
                         <td style={{...tdStyle, color:isCall?'var(--green-text)':'var(--red-text)', fontWeight:600}}>{fmtK(o.volume)}</td>
                         <td style={{...tdStyle, color:'var(--text-secondary)'}}>{fmtK(o.openInterest)}</td>
                         <td style={{...tdStyle, color:'var(--amber-text)', fontWeight:700}}>{ratio}× ⚡</td>
-                        <td style={{...tdStyle, fontFamily:'var(--font-mono)'}}>${(o.lastPrice||0).toFixed(2)}</td>
                         <td style={{...tdStyle, color:'var(--text-secondary)'}}>{o.impliedVolatility?(o.impliedVolatility*100).toFixed(0)+'%':'—'}</td>
                         <td style={tdStyle}>
                           <span style={{ fontSize:9, padding:'1px 6px', borderRadius:10, fontWeight:500, background:itm?(isCall?'var(--green-dim)':'var(--red-dim)'):'var(--bg-tertiary)', color:itm?(isCall?'var(--green-text)':'var(--red-text)'):'var(--text-secondary)' }}>
