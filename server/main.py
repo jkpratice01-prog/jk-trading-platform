@@ -14,22 +14,28 @@ load_dotenv()                                 # also load root .env (if any)
 ALPACA_KEY    = os.getenv("ALPACA_API_KEY", "")
 ALPACA_SECRET = os.getenv("ALPACA_SECRET_KEY", "")
 
-from server.db import init_db
-from server.services.quotes          import get_quotes
-from server.services.chart           import get_chart
-from server.services.options         import get_options_chain
-from server.services.movers          import get_movers
-from server.services.scanner         import scan_symbols, get_cached_scan
-from server.services.premarket       import get_premarket_movers
-from server.services.flow_scanner    import scan_unusual_flow
-from server.services.earnings_iv     import get_earnings_iv_analysis
-from server.services.intraday_scanner import scan_intraday
-from server.services.multi_timeframe  import get_multi_timeframe
-from server.services.pivots          import get_pivots
-from server.services.internals       import get_internals
-from server.services.trading         import (
-    get_account, get_positions, get_orders, place_order, cancel_order, close_position
-)
+from server.db import init_db, get_db
+
+try:
+    from server.services.quotes          import get_quotes
+    from server.services.chart           import get_chart
+    from server.services.options         import get_options_chain
+    from server.services.movers          import get_movers
+    from server.services.scanner         import scan_symbols, get_cached_scan
+    from server.services.premarket       import get_premarket_movers
+    from server.services.flow_scanner    import scan_unusual_flow
+    from server.services.earnings_iv     import get_earnings_iv_analysis
+    from server.services.intraday_scanner import scan_intraday
+    from server.services.multi_timeframe  import get_multi_timeframe
+    from server.services.pivots          import get_pivots
+    from server.services.internals       import get_internals
+    from server.services.trading         import (
+        get_account, get_positions, get_orders, place_order, cancel_order, close_position
+    )
+    print("Core services imported successfully")
+except Exception as e:
+    print(f"CRITICAL: Core service import failed: {e}")
+    import traceback; traceback.print_exc()
 try:
     from server.services.institutions   import get_institutional_holders, get_major_holders
     print("Institutions imported successfully")
@@ -79,13 +85,22 @@ except Exception as e:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
+    print("=== STARTUP BEGIN ===")
+    try:
+        init_db()
+        print("DB initialised OK")
+    except Exception as e:
+        print(f"CRITICAL: DB init failed: {e}")
+        import traceback; traceback.print_exc()
     try:
         from server.services.holdings import init_tables as holdings_init, start_price_refresh_job
         holdings_init()
         start_price_refresh_job(3600)
+        print("Holdings init OK")
     except Exception as e:
         print(f"Holdings init error: {e}")
+        import traceback; traceback.print_exc()
+    print("=== STARTUP COMPLETE ===")
     yield
 
 
