@@ -17,5 +17,5 @@ ENV PYTHONUNBUFFERED=1
 ENV DB_PATH=/data/trading.db
 ENV PYTHONPATH=/app
 
-# Railway injects $PORT at runtime — do NOT hardcode it
-CMD ["sh", "-c", "uvicorn server.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Use PORT env var from Railway (defaults to 8080 on Railway)
+CMD ["sh", "-c", "exec uvicorn server.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
