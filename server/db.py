@@ -1,7 +1,10 @@
+import os
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "trading.db"
+# In production set DB_PATH=/data/trading.db (Fly.io volume mount)
+# Falls back to local server/trading.db for development
+DB_PATH = Path(os.getenv("DB_PATH", str(Path(__file__).parent / "trading.db")))
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS quotes (

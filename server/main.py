@@ -91,9 +91,21 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Trading Platform API", lifespan=lifespan)
 
+_ALLOWED_ORIGINS = [
+    "http://localhost:5174", "http://localhost:3000", "http://localhost:5173",
+    # Add your Vercel/Render/Railway/Fly domain here once deployed, e.g.:
+    # "https://your-app.vercel.app",
+    # "https://your-app.up.railway.app",
+]
+# Allow all origins when CORS_ORIGIN=* env var is set (useful during setup)
+if os.getenv("CORS_ORIGIN") == "*":
+    _ALLOWED_ORIGINS = ["*"]
+elif os.getenv("CORS_ORIGIN"):
+    _ALLOWED_ORIGINS.append(os.getenv("CORS_ORIGIN"))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5174", "http://localhost:3000", "http://localhost:5173"],
+    allow_origins=_ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )

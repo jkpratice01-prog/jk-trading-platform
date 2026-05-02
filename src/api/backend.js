@@ -1,10 +1,12 @@
 // Central client for our Python FastAPI backend.
-// All calls use relative /api/* paths (proxied by Vite to localhost:8000).
+// Dev: Vite proxies /api/* → localhost:8000
+// Prod: set VITE_API_URL=https://your-backend.fly.dev (or render/railway URL)
+const API_BASE = import.meta.env.VITE_API_URL || ''
 
 async function apiFetch(path, options = {}) {
   const timeout = options._timeout ?? 15000
   delete options._timeout
-  const res = await fetch(path, {
+  const res = await fetch(`${API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...options.headers },
     signal: AbortSignal.timeout(timeout),
     ...options,
