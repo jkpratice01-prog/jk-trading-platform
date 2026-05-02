@@ -1,6 +1,6 @@
-# Fly.io configuration for the FastAPI backend
+# Fly.io configuration — jk-trading-backend
 app = "jk-trading-backend"
-primary_region = "iad"          # US East — change to "lax" (US West), "lhr" (London), etc.
+primary_region = "iad"
 
 [build]
   dockerfile = "Dockerfile.backend"
@@ -31,8 +31,8 @@ primary_region = "iad"          # US East — change to "lax" (US West), "lhr" (
 
   [[services.http_checks]]
     interval = "30s"
-    timeout  = "10s"
-    path     = "/api/health"
+    timeout = "10s"
+    path = "/api/health"
 
 [vm]
   memory = "512mb"
