@@ -76,7 +76,9 @@
       "Bash(server/venv/bin/python3 *)",
       "Bash(fly platform *)",
       "Bash(fly auth *)",
-      "Bash(fly apps *)"
+      "Bash(fly apps *)",
+      "Bash(security find-internet-password *)",
+      "Bash(security delete-internet-password *)"
     ]
   }
 }
