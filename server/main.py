@@ -108,9 +108,8 @@ app = FastAPI(title="Trading Platform API", lifespan=lifespan)
 
 _ALLOWED_ORIGINS = [
     "http://localhost:5174", "http://localhost:3000", "http://localhost:5173",
-    # Add your Vercel/Render/Railway/Fly domain here once deployed, e.g.:
-    # "https://your-app.vercel.app",
-    # "https://your-app.up.railway.app",
+    "https://jk-trading-platform-jkpratice01-progs-projects.vercel.app",
+    "https://jk-trading-platform.vercel.app",
 ]
 # Allow all origins when CORS_ORIGIN=* env var is set (useful during setup)
 if os.getenv("CORS_ORIGIN") == "*":
