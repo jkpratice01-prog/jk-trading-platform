@@ -74,7 +74,9 @@
       "Bash(echo \"Frontend PID: $!\")",
       "Bash(node *)",
       "Bash(server/venv/bin/python3 *)",
-      "Bash(fly platform *)"
+      "Bash(fly platform *)",
+      "Bash(fly auth *)",
+      "Bash(fly apps *)"
     ]
   }
 }
