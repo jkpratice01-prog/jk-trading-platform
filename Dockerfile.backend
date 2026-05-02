@@ -15,9 +15,7 @@ RUN mkdir -p /data
 
 ENV PYTHONUNBUFFERED=1
 ENV DB_PATH=/data/trading.db
-# PORT is injected by Railway at runtime
-ENV PORT=8000
+ENV PYTHONPATH=/app
 
-EXPOSE 8000
-
-CMD uvicorn server.main:app --host 0.0.0.0 --port ${PORT:-8000}
+# Railway injects $PORT at runtime — do NOT hardcode it
+CMD ["sh", "-c", "uvicorn server.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
