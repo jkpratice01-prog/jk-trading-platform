@@ -306,6 +306,8 @@ export default function OptionsDetail({ sym, price, closes, onClose, refreshKey 
       <div style={{ display: 'flex', gap: 4, marginBottom: 10, flexWrap: 'wrap' }}>
         {[
           { id: 'summary',    label: 'Summary' },
+          { id: 'squeeze',    label: `🔥 Γ Squeeze${chain.squeeze?.score >= 55 ? ` ${chain.squeeze.score}` : ''}` },
+          { id: 'dirsweeps',  label: `↕ Sweeps${chain.dirSweeps?.bias === 'BULLISH' ? ' 🟢' : chain.dirSweeps?.bias === 'BEARISH' ? ' 🔴' : ''}` },
           { id: 'gex',        label: `GEX` },
           { id: 'magnets',    label: 'Magnets' },
           { id: 'clusters',   label: 'Exp Clusters' },
@@ -480,6 +482,179 @@ export default function OptionsDetail({ sym, price, closes, onClose, refreshKey 
           </table>
         </div>
       )}
+
+      {/* ── Gamma Squeeze tab ─────────────────────────────────────────────── */}
+      {tab === 'squeeze' && (() => {
+        const sq  = chain.squeeze || {}
+        const sw  = chain.dirSweeps || {}
+        const spot = underlyingPrice || price
+        if (!sq.score && sq.score !== 0) return (
+          <div style={{ color: 'var(--text-tertiary)', fontSize: 11, padding: 12 }}>
+            No gamma squeeze data — options IV required.
+          </div>
+        )
+
+        const scoreColor = sq.color || 'var(--text-tertiary)'
+        const meterW = `${sq.score}%`
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* Score gauge */}
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <div className="card" style={{ padding: '14px 18px', borderTop: `3px solid ${scoreColor}`, minWidth: 160 }}>
+                <div style={{ fontSize: 9, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: 4 }}>Gamma Squeeze Score</div>
+                <div style={{ fontSize: 32, fontWeight: 800, fontFamily: 'var(--font-mono)', color: scoreColor, lineHeight: 1 }}>{sq.score}</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: scoreColor, marginTop: 4 }}>{sq.label}</div>
+                <div style={{ marginTop: 8, height: 6, borderRadius: 3, background: 'var(--bg-tertiary)', overflow: 'hidden' }}>
+                  <div style={{ width: meterW, height: '100%', background: scoreColor, borderRadius: 3, transition: 'width 0.5s ease' }} />
+                </div>
+              </div>
+              <div className="card" style={{ padding: '14px 18px', flex: 1, minWidth: 200 }}>
+                <div style={{ fontSize: 9, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: 8 }}>What is a Gamma Squeeze?</div>
+                <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                  When dealers are <strong>net-short gamma</strong>, rising prices force them to buy more shares to hedge, pushing price higher — creating a feedback loop.
+                  Score above <span style={{ color: '#f97316' }}>55</span> = elevated risk.
+                  Score above <span style={{ color: '#ef4444' }}>75</span> = extreme conditions (think GME/AMC events).
+                </div>
+              </div>
+            </div>
+
+            {/* Signals */}
+            <div className="card" style={{ padding: '12px 16px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Active Signals</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {(sq.signals || []).map((s, i) => (
+                  <div key={i} style={{ fontSize: 11, color: 'var(--text-primary)', padding: '5px 10px',
+                    background: 'var(--bg-tertiary)', borderRadius: 6, lineHeight: 1.4 }}>
+                    {s}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* GEX context */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px,1fr))', gap: 8 }}>
+              {[
+                { label: 'Net GEX',    value: `${sq.netGex >= 0 ? '+' : ''}${sq.netGex}M`, color: sq.netGex < 0 ? 'var(--red-text)' : 'var(--green-text)' },
+                { label: 'Flip Point', value: sq.flipPoint ? `$${sq.flipPoint}` : '—',     color: 'var(--amber-text)' },
+                { label: 'Spot',       value: spot ? `$${spot.toFixed(2)}` : '—',           color: 'var(--text-primary)' },
+                { label: 'Bias',       value: sw.bias || '—',  color: sw.bias === 'BULLISH' ? 'var(--green-text)' : sw.bias === 'BEARISH' ? 'var(--red-text)' : 'var(--amber-text)' },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="card" style={{ padding: '8px 12px' }}>
+                  <div style={{ fontSize: 9, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: 2 }}>{label}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-mono)', color }}>{value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ── Directional Sweeps tab ─────────────────────────────────────────── */}
+      {tab === 'dirsweeps' && (() => {
+        const sw   = chain.dirSweeps || {}
+        const spot = underlyingPrice || price
+        if (!sw.bias) return <div style={{ color: 'var(--text-tertiary)', fontSize: 11, padding: 12 }}>No sweep data available.</div>
+
+        const upPrem   = sw.upsidePremium   || 0
+        const dnPrem   = sw.downsidePremium || 0
+        const total    = upPrem + dnPrem || 1
+        const fmtP     = v => v >= 1e6 ? `$${(v/1e6).toFixed(1)}M` : v >= 1e3 ? `$${(v/1e3).toFixed(0)}K` : `$${v}`
+        const biasColor= sw.bias === 'BULLISH' ? 'var(--green-text)' : sw.bias === 'BEARISH' ? 'var(--red-text)' : 'var(--amber-text)'
+
+        const SweepRow = ({ o }) => {
+          if (!o) return null
+          const isCall = (o.type||'').toLowerCase() === 'call'
+          const color  = isCall ? 'var(--green-text)' : 'var(--red-text)'
+          const tt     = o.tradeType || 'sweep'
+          return (
+            <tr>
+              <td style={tdStyle}>
+                <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 8, fontWeight: 700,
+                  background: isCall ? 'var(--green-dim)' : 'var(--red-dim)', color }}>
+                  {(o.type||'').toUpperCase()}
+                </span>
+              </td>
+              <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', fontWeight: 700, color }}>${o.strike}</td>
+              <td style={{ ...tdStyle, color: 'var(--text-tertiary)', fontSize: 9 }}>+{o.pctOTM}% OTM</td>
+              <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', color: 'var(--amber-text)', fontWeight: 600 }}>{fmtP(o.premium)}</td>
+              <td style={{ ...tdStyle, color: 'var(--text-secondary)', fontSize: 9 }}>{o.daysToExpiry}d</td>
+              <td style={tdStyle}>
+                <span style={{ fontSize: 8, padding: '1px 5px', borderRadius: 6,
+                  background: tt === 'sweep' ? '#f9731622' : '#3b82f622',
+                  color: tt === 'sweep' ? '#f97316' : '#3b82f6', fontWeight: 700 }}>
+                  {tt === 'sweep' ? '🌊' : '🧱'} {tt}
+                </span>
+              </td>
+            </tr>
+          )
+        }
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* Bias bar */}
+            <div className="card" style={{ padding: '12px 16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--green-text)' }}>
+                  ↑ Upside {fmtP(upPrem)} ({sw.upsidePct}%)
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: biasColor }}>{sw.bias}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--red-text)' }}>
+                  ({sw.downsidePct}%) {fmtP(dnPrem)} ↓ Downside
+                </span>
+              </div>
+              <div style={{ height: 10, borderRadius: 5, background: 'var(--red-dim)', overflow: 'hidden' }}>
+                <div style={{ width: `${sw.upsidePct}%`, height: '100%', background: 'var(--green)', borderRadius: '5px 0 0 5px' }} />
+              </div>
+              <div style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 4 }}>
+                Upside {sw.upsideCount} sweeps/blocks vs Downside {sw.downsideCount} — shows directional intent of large money
+              </div>
+            </div>
+
+            {/* Two column tables */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-subtle)',
+                  fontSize: 10, fontWeight: 700, color: 'var(--green-text)' }}>
+                  ↑ Upside Sweeps (Bullish Calls)
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead><tr>
+                    {['Type','Strike','OTM','Premium','DTE','Class'].map(h => (
+                      <th key={h} style={thStyle}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {(sw.upside || []).map((o, i) => <SweepRow key={i} o={o} />)}
+                    {!sw.upside?.length && (
+                      <tr><td colSpan={6} style={{ padding: 12, fontSize: 10, color: 'var(--text-tertiary)', textAlign: 'center' }}>No upside sweeps</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-subtle)',
+                  fontSize: 10, fontWeight: 700, color: 'var(--red-text)' }}>
+                  ↓ Downside Sweeps (Bearish Puts)
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead><tr>
+                    {['Type','Strike','OTM','Premium','DTE','Class'].map(h => (
+                      <th key={h} style={thStyle}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {(sw.downside || []).map((o, i) => <SweepRow key={i} o={o} />)}
+                    {!sw.downside?.length && (
+                      <tr><td colSpan={6} style={{ padding: 12, fontSize: 10, color: 'var(--text-tertiary)', textAlign: 'center' }}>No downside sweeps</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── GEX tab ────────────────────────────────────────────────────────── */}
       {tab === 'gex' && (() => {

@@ -88,15 +88,35 @@ def _gex_profile(calls: list[dict], puts: list[dict], underlying: float) -> dict
     if not underlying or underlying <= 0:
         return {}
 
+    today = date.today()
+
+    def _get_gamma(contract: dict) -> float:
+        """Use stored gamma or compute from IV (works for both fresh + cached data)."""
+        g = contract.get('gamma')
+        if g:
+            return float(g)
+        iv  = float(contract.get('impliedVolatility') or 0)
+        exp = contract.get('expirationLabel') or ''
+        s   = float(contract.get('strike') or 0)
+        if not (iv > 0 and exp and s > 0):
+            return 0.0
+        try:
+            T = max(0.0001, (date.fromisoformat(str(exp)[:10]) - today).days / 365.0)
+            return _bs_gamma(underlying, s, T, 0.05, iv)
+        except Exception:
+            return 0.0
+
     by_strike: dict[float, dict] = {}
     for c in calls:
-        s, g, oi = c.get('strike'), c.get('gamma') or 0, c.get('openInterest') or 0
-        if s:
+        s, oi = c.get('strike'), c.get('openInterest') or 0
+        g = _get_gamma(c)
+        if s and oi:
             row = by_strike.setdefault(s, {'cGex': 0.0, 'pGex': 0.0})
             row['cGex'] += g * oi * 100 * underlying
     for p in puts:
-        s, g, oi = p.get('strike'), p.get('gamma') or 0, p.get('openInterest') or 0
-        if s:
+        s, oi = p.get('strike'), p.get('openInterest') or 0
+        g = _get_gamma(p)
+        if s and oi:
             row = by_strike.setdefault(s, {'cGex': 0.0, 'pGex': 0.0})
             row['pGex'] += g * oi * 100 * underlying
 
@@ -210,6 +230,163 @@ def _expiration_clusters(calls: list[dict], puts: list[dict]) -> list[dict]:
     return sorted(result, key=lambda x: x['dte'])
 
 
+def _gamma_squeeze(gex: dict, magnets: dict, summary: dict, underlying: float | None) -> dict:
+    """
+    Gamma Squeeze Score (0–100).
+
+    A gamma squeeze occurs when dealers are net-short gamma and forced to
+    continuously buy (call squeeze) or sell (put squeeze) the underlying to
+    delta-hedge, amplifying the move into a feedback loop.
+
+    Scoring factors:
+      • Negative net GEX          → dealers short gamma, moves amplify (up to 35 pts)
+      • Call wall proximity       → price approaching / breaking dealer resistance (20 pts)
+      • Call vs put dominance     → aggressive call buying pressure (20 pts)
+      • Sweep count               → institutional urgency signals (15 pts)
+      • Premium imbalance         → dollar commitment to direction (10 pts)
+    """
+    if not underlying:
+        return {}
+
+    score   = 0
+    signals = []
+    net_gex = (gex.get('totalNetGex') or 0)
+    flip    = gex.get('flipPoint')
+
+    # ── 1. GEX condition (0–35 pts) ─────────────────────────────────────────
+    if net_gex < -100:
+        score += 35; signals.append('🔴 Extreme negative GEX — dealers VERY short gamma')
+    elif net_gex < -40:
+        score += 25; signals.append('🟠 Negative GEX — dealers short gamma, moves amplify')
+    elif net_gex < 0:
+        score += 12; signals.append('🟡 Slightly negative GEX — mild amplification')
+    else:
+        signals.append('🟢 Positive GEX — dealers long gamma, moves dampened')
+
+    if flip:
+        dist_flip = (underlying - flip) / underlying * 100
+        if abs(dist_flip) < 2:
+            score += 8; signals.append(f'⚡ Price at GEX flip point (${flip}) — volatility inflection zone')
+        elif dist_flip > 0:
+            signals.append(f'📍 Price above GEX flip (${flip}) — negative gamma territory')
+        else:
+            signals.append(f'📍 Price below GEX flip (${flip}) — positive gamma territory')
+
+    # ── 2. Call wall proximity (0–20 pts) ──────────────────────────────────
+    call_wall = magnets.get('callWall') or {}
+    put_wall  = magnets.get('putWall')  or {}
+    if call_wall.get('strike'):
+        dist = (call_wall['strike'] - underlying) / underlying * 100
+        if dist < 0:
+            score += 20; signals.append(f'🔥 Price ABOVE call wall ${call_wall["strike"]} — gamma squeeze ACTIVE')
+        elif dist < 1.5:
+            score += 18; signals.append(f'🚨 Within 1.5% of call wall ${call_wall["strike"]} — imminent squeeze')
+        elif dist < 3:
+            score += 12; signals.append(f'⚠️  Approaching call wall ${call_wall["strike"]} ({dist:.1f}% away)')
+        elif dist < 5:
+            score += 5;  signals.append(f'📊 Call wall ${call_wall["strike"]} at {dist:.1f}%')
+
+    # ── 3. Call/put dominance (0–20 pts) ────────────────────────────────────
+    pc = summary.get('pcVolumeRatio') or 1
+    if pc < 0.25:
+        score += 20; signals.append(f'📈 Extreme call dominance P/C={pc:.2f} — heavy upside bets')
+    elif pc < 0.50:
+        score += 14; signals.append(f'📈 Strong call buying P/C={pc:.2f}')
+    elif pc < 0.75:
+        score += 7;  signals.append(f'📈 Mild call bias P/C={pc:.2f}')
+    elif pc > 2.0:
+        signals.append(f'📉 Heavy put pressure P/C={pc:.2f} — possible downside squeeze')
+
+    # ── 4. Sweep urgency (0–15 pts) ─────────────────────────────────────────
+    sweeps = summary.get('sweepCount') or 0
+    if sweeps >= 15:
+        score += 15; signals.append(f'⚡ {sweeps} sweeps — aggressive institutional positioning')
+    elif sweeps >= 8:
+        score += 10; signals.append(f'⚡ {sweeps} sweeps detected')
+    elif sweeps >= 3:
+        score += 5;  signals.append(f'⚡ {sweeps} sweeps — moderate activity')
+
+    # ── 5. Premium imbalance (0–10 pts) ─────────────────────────────────────
+    call_prem = summary.get('totalCallVolume', 0) or 0
+    put_prem  = summary.get('totalPutVolume',  0) or 0
+    total_vol = call_prem + put_prem
+    if total_vol > 0:
+        call_share = call_prem / total_vol
+        if call_share > 0.75:
+            score += 10; signals.append(f'💰 {call_share*100:.0f}% of volume in calls')
+        elif call_share > 0.60:
+            score += 5;  signals.append(f'💰 {call_share*100:.0f}% call-weighted volume')
+
+    score = min(score, 100)
+    label = ('EXTREME SQUEEZE RISK' if score >= 75 else
+             'HIGH SQUEEZE RISK'    if score >= 55 else
+             'MODERATE RISK'        if score >= 35 else
+             'LOW RISK'             if score >= 15 else 'NO SQUEEZE')
+    color = ('#ef4444' if score >= 75 else '#f97316' if score >= 55 else
+             '#fbbf24' if score >= 35 else '#86efac' if score >= 15 else '#22c55e')
+
+    return {
+        'score':   score,
+        'label':   label,
+        'color':   color,
+        'signals': signals,
+        'netGex':  net_gex,
+        'flipPoint': flip,
+    }
+
+
+def _directional_sweeps(unusual: list[dict], underlying: float | None) -> dict:
+    """
+    Split sweeps into UPSIDE (bullish calls OTM above price) and
+    DOWNSIDE (bearish puts OTM below price). Shows where big money is
+    betting directionally.
+    """
+    upside, downside = [], []
+
+    for o in unusual:
+        if o.get('tradeType') not in ('sweep', 'block'):
+            continue
+        opt_type = (o.get('type') or '').lower()
+        strike   = o.get('strike') or 0
+        premium  = o.get('premium') or 0
+        dte      = o.get('daysToExpiry') or 999
+
+        if not premium or not strike or not underlying:
+            continue
+
+        is_call = opt_type == 'call'
+        is_put  = opt_type == 'put'
+
+        if is_call and strike >= underlying:          # OTM / ATM call → bullish
+            pct_otm = round((strike - underlying) / underlying * 100, 1)
+            upside.append({**o, 'direction': 'UPSIDE', 'pctOTM': pct_otm})
+        elif is_put and strike <= underlying:         # OTM / ATM put → bearish
+            pct_otm = round((underlying - strike) / underlying * 100, 1)
+            downside.append({**o, 'direction': 'DOWNSIDE', 'pctOTM': pct_otm})
+
+    upside.sort(  key=lambda x: x.get('premium', 0), reverse=True)
+    downside.sort(key=lambda x: x.get('premium', 0), reverse=True)
+
+    up_prem   = sum(x.get('premium', 0) for x in upside)
+    down_prem = sum(x.get('premium', 0) for x in downside)
+    total     = up_prem + down_prem or 1
+
+    bias = ('BULLISH' if up_prem > down_prem * 1.5 else
+            'BEARISH' if down_prem > up_prem * 1.5 else 'NEUTRAL')
+
+    return {
+        'upside':        upside[:12],
+        'downside':      downside[:12],
+        'upsideCount':   len(upside),
+        'downsideCount': len(downside),
+        'upsidePremium': round(up_prem),
+        'downsidePremium': round(down_prem),
+        'upsidePct':     round(up_prem / total * 100),
+        'downsidePct':   round(down_prem / total * 100),
+        'bias':          bias,
+    }
+
+
 def _max_pain(calls: list[dict], puts: list[dict], strikes: list[float]) -> float | None:
     if not strikes or not calls or not puts:
         return None
@@ -248,14 +425,14 @@ def _read_cache(symbol: str, expiry: str, conn, underlying: float | None = None)
             if abs(mid_strike - underlying) / underlying > 0.50:
                 return None  # stale — price moved too far, refetch
 
-    return _rows_to_chain(symbol, expiry, [dict(r) for r in rows])
+    return _rows_to_chain(symbol, expiry, [dict(r) for r in rows], underlying)
 
 
-def _rows_to_chain(symbol: str, expiry: str, rows: list[dict]) -> dict:
+def _rows_to_chain(symbol: str, expiry: str, rows: list[dict], underlying: float | None = None) -> dict:
     calls = [_row_to_contract(r) for r in rows if r["option_type"] == "call"]
     puts  = [_row_to_contract(r) for r in rows if r["option_type"] == "put"]
     strikes = sorted(set(r["strike"] for r in rows if r["strike"]))
-    return _build_response(symbol, None, [expiry], expiry, calls, puts, strikes, "yfinance")
+    return _build_response(symbol, underlying, [expiry], expiry, calls, puts, strikes, "yfinance")
 
 
 def _row_to_contract(r: dict) -> dict:
@@ -370,9 +547,25 @@ def _build_response(symbol, underlying, expiry_dates, selected_expiry,
     unusual_sorted = sorted(unusual, key=lambda c: c.get("premium") or 0, reverse=True)
 
     max_pain_val = _max_pain(calls, puts, strikes)
-    gex          = _gex_profile(calls, puts, underlying) if underlying else {}
+    gex          = _gex_profile(calls, puts, underlying)     if underlying else {}
     magnets      = _strike_magnets(calls, puts, underlying, max_pain_val) if underlying else {}
     clusters     = _expiration_clusters(calls, puts)
+
+    summary = {
+        "totalCallOI":       total_call_oi,
+        "totalPutOI":        total_put_oi,
+        "totalCallVolume":   total_call_vol,
+        "totalPutVolume":    total_put_vol,
+        "pcVolumeRatio":     round(total_put_vol / total_call_vol, 3) if total_call_vol else None,
+        "pcOIRatio":         round(total_put_oi  / total_call_oi,  3) if total_call_oi  else None,
+        "maxPain":           max_pain_val,
+        "unusualContracts":  len(unusual),
+        "sweepCount":        sum(1 for c in unusual if c.get("tradeType") == "sweep"),
+        "blockCount":        sum(1 for c in unusual if c.get("tradeType") == "block"),
+    }
+
+    squeeze    = _gamma_squeeze(gex, magnets, summary, underlying)
+    dir_sweeps = _directional_sweeps(unusual_sorted, underlying)
 
     return {
         "symbol": symbol,
@@ -383,22 +576,13 @@ def _build_response(symbol, underlying, expiry_dates, selected_expiry,
         "strikes":          sorted(strikes),
         "calls":            sorted(calls, key=lambda c: c.get("strike", 0)),
         "puts":             sorted(puts,  key=lambda p: p.get("strike", 0)),
-        "summary": {
-            "totalCallOI":       total_call_oi,
-            "totalPutOI":        total_put_oi,
-            "totalCallVolume":   total_call_vol,
-            "totalPutVolume":    total_put_vol,
-            "pcVolumeRatio":     round(total_put_vol / total_call_vol, 3) if total_call_vol else None,
-            "pcOIRatio":         round(total_put_oi  / total_call_oi,  3) if total_call_oi  else None,
-            "maxPain":           max_pain_val,
-            "unusualContracts":  len(unusual),
-            "sweepCount":        sum(1 for c in unusual if c.get("tradeType") == "sweep"),
-            "blockCount":        sum(1 for c in unusual if c.get("tradeType") == "block"),
-        },
-        "gex":       gex,
-        "magnets":   magnets,
-        "clusters":  clusters,
-        "unusual":   unusual_sorted[:40],
+        "summary": summary,
+        "gex":          gex,
+        "magnets":      magnets,
+        "clusters":     clusters,
+        "squeeze":      squeeze,
+        "dirSweeps":    dir_sweeps,
+        "unusual":      unusual_sorted[:40],
         "source":    source,
         "sourceLabel": "yfinance (real data)" if source == "yfinance" else source,
     }
