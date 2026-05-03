@@ -983,3 +983,47 @@ async def holdings_history(symbol: str, days: int = 30):
 async def holdings_refresh():
     result = await asyncio.to_thread(refresh_all_prices)
     return result
+
+
+# ── DB Stats (read-only view of what's stored) ────────────────────────────────
+
+@app.get("/api/db/stats")
+def db_stats():
+    """Read-only overview of all database tables — row counts and recent entries."""
+    conn = get_db()
+    tables = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+    ).fetchall()
+
+    result = {}
+    for row in tables:
+        tbl = row["name"]
+        try:
+            count = conn.execute(f"SELECT COUNT(*) FROM [{tbl}]").fetchone()[0]
+            # Try to get the most recent row (look for common timestamp columns)
+            recent = None
+            for col in ("fetched_at", "created_at", "recorded_at", "updated_at"):
+                try:
+                    r = conn.execute(
+                        f"SELECT * FROM [{tbl}] ORDER BY [{col}] DESC LIMIT 1"
+                    ).fetchone()
+                    if r:
+                        recent = dict(r)
+                        break
+                except Exception:
+                    continue
+            result[tbl] = {"rows": count, "latest": recent}
+        except Exception as e:
+            result[tbl] = {"rows": "error", "error": str(e)}
+
+    conn.close()
+    db_path = str(get_db.__module__)
+    import os
+    from server.db import DB_PATH
+    size_bytes = os.path.getsize(str(DB_PATH)) if os.path.exists(str(DB_PATH)) else 0
+    return {
+        "tables":   result,
+        "db_path":  str(DB_PATH),
+        "db_size":  f"{size_bytes / 1024:.1f} KB",
+        "table_count": len(tables),
+    }
