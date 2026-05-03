@@ -52,6 +52,8 @@ const TABS = [
 const REFRESH_OPTIONS = [
   { value: 0,    label: 'Off'    },
   { value: 0.5,  label: '30s'    },
+  { value: 1,  label: '1 min'    },
+  { value: 5,  label: '5 min'    },
   { value: 15,   label: '15 min' },
   { value: 60,   label: '1 hr'   },
   { value: 240,  label: '4 hr'   },
