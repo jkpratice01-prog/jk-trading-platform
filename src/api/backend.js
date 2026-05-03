@@ -71,7 +71,7 @@ export async function backendOptionsFlowBatch(symbols) {
 }
 
 export async function backendEarnings(symbols) {
-  return apiFetch(`/api/earnings?symbols=${symbols.join(',')}`)
+  return apiFetch(`/api/earnings?symbols=${symbols.join(',')}`, { _timeout: 30000 })
 }
 
 export async function backendIVRank(symbol) {

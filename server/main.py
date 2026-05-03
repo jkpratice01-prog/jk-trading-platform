@@ -293,18 +293,26 @@ async def options_flow(symbol: str):
 
 # ── Earnings calendar ─────────────────────────────────────────────────────────
 
+_earnings_cache: dict = {}   # {sym: (result_or_None, timestamp)}
+_EARNINGS_TTL = 3600        # 1 hour
+
 @app.get("/api/earnings")
 async def earnings_calendar(symbols: str = Query(...)):
     """Upcoming earnings for a list of symbols — yfinance earnings_dates."""
-    import pandas as pd
+    import time, pandas as pd
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     syms = [s.strip().upper() for s in symbols.split(",") if s.strip()]
 
     def _fetch(sym):
+        now_ts = time.time()
+        if sym in _earnings_cache:
+            res, ts = _earnings_cache[sym]
+            if now_ts - ts < _EARNINGS_TTL:
+                return res
         try:
-            import yfinance as yf
-            t  = yf.Ticker(sym)
+            from server.services.yf_session import ticker as yf_ticker
+            t  = yf_ticker(sym)
             ed = t.earnings_dates
             if ed is None or ed.empty:
                 return None
@@ -313,27 +321,33 @@ async def earnings_calendar(symbols: str = Query(...)):
             future = ed[(ed.index > now) & (ed.index <= cutoff)]
             if future.empty:
                 return None
-            row    = future.iloc[-1]   # nearest upcoming date
+            row    = future.iloc[-1]
             dt     = future.index[-1]
             eps    = row.get("EPS Estimate")
-            return {
+            result = {
                 "symbol":      sym,
                 "date":        dt.strftime("%b %d"),
                 "dateIso":     dt.isoformat()[:10],
                 "daysAway":    (dt.date() - now.date()).days,
                 "epsEstimate": round(float(eps), 2) if eps and str(eps) != "nan" else None,
-                "when":        "AMC",   # yfinance doesn't reliably provide this
+                "when":        "AMC",
             }
+            _earnings_cache[sym] = (result, time.time())
+            return result
         except Exception:
+            _earnings_cache[sym] = (None, time.time())
             return None
 
     results = []
     with ThreadPoolExecutor(max_workers=10) as pool:
         futures = {pool.submit(_fetch, s): s for s in syms}
-        for fut in as_completed(futures, timeout=20):
-            r = fut.result()
-            if r:
-                results.append(r)
+        for fut in as_completed(futures, timeout=25):
+            try:
+                r = fut.result()
+                if r:
+                    results.append(r)
+            except Exception:
+                pass
 
     results.sort(key=lambda r: r["daysAway"])
     return {"earnings": results}
