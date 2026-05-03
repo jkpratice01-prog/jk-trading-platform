@@ -95,6 +95,72 @@ function calcRSI(closes, period = 14) {
   return rsi
 }
 
+// ── FVG detection (Fair Value Gap) ───────────────────────────────────────────
+// A 3-candle gap: candle[i-1].high < candle[i+1].low (bullish)
+//                 candle[i-1].low  > candle[i+1].high (bearish)
+// Price tends to return to "fill" these gaps — key options entry zones.
+function detectFVGs(highs, lows, times, lastClose, maxLookback = 120) {
+  const fvgs = []
+  const start = Math.max(0, highs.length - maxLookback)
+  for (let i = start + 1; i < highs.length - 1; i++) {
+    const bullish = lows[i + 1] > highs[i - 1]
+    const bearish = highs[i + 1] < lows[i - 1]
+    if (bullish) {
+      const top = lows[i + 1], bottom = highs[i - 1]
+      const filled = lastClose < bottom   // price fell through gap
+      if (!filled) fvgs.push({ type: 'bullish', top, bottom, time: times[i], mid: (top + bottom) / 2 })
+    } else if (bearish) {
+      const top = lows[i - 1], bottom = highs[i + 1]
+      const filled = lastClose > top      // price rose through gap
+      if (!filled) fvgs.push({ type: 'bearish', top, bottom, time: times[i], mid: (top + bottom) / 2 })
+    }
+  }
+  return fvgs.slice(-8)   // show 8 most recent unfilled
+}
+
+// ── Doji detection ────────────────────────────────────────────────────────────
+// Doji = body < 10% of candle range → indecision / potential reversal
+function detectDojis(opens, highs, lows, closes, times, lookback = 80) {
+  const dojis = []
+  const start = Math.max(0, closes.length - lookback)
+  for (let i = start; i < closes.length; i++) {
+    const body  = Math.abs(closes[i] - opens[i])
+    const range = highs[i] - lows[i]
+    if (!range || body / range > 0.10) continue
+    const upper = highs[i] - Math.max(opens[i], closes[i])
+    const lower = Math.min(opens[i], closes[i]) - lows[i]
+    let type = 'Standard', signal = 'neutral', icon = '◈', optionsTip = ''
+    if (lower > range * 0.60 && upper < range * 0.15) {
+      type = 'Dragonfly'; signal = 'bullish'; icon = '🐉'
+      optionsTip = 'Buyers rejected lower prices → bullish reversal → look for CALLS'
+    } else if (upper > range * 0.60 && lower < range * 0.15) {
+      type = 'Gravestone'; signal = 'bearish'; icon = '🪦'
+      optionsTip = 'Sellers rejected higher prices → bearish reversal → look for PUTS'
+    } else if (upper > range * 0.30 && lower > range * 0.30) {
+      type = 'Long-leg'; signal = 'neutral'; icon = '✚'
+      optionsTip = 'High indecision — premium is rich → wait for breakout or use straddle/strangle'
+    } else {
+      optionsTip = 'Indecision → confirm direction before entering — avoid buying premium'
+    }
+    dojis.push({ time: times[i], close: closes[i], high: highs[i], low: lows[i], type, signal, icon, optionsTip })
+  }
+  return dojis.slice(-6)
+}
+
+// ── FVG options implication ───────────────────────────────────────────────────
+function fvgTip(fvg, currentPrice) {
+  const inside = currentPrice >= fvg.bottom && currentPrice <= fvg.top
+  if (fvg.type === 'bullish') {
+    if (inside)               return '⚡ Price inside bullish FVG — support zone active → CALLS on hold above mid'
+    if (currentPrice > fvg.top)   return '✅ Price above bullish FVG — gap is support → CALLS on pullback to gap'
+    return '⚠️ Price below bullish FVG — gap may act as resistance → wait for reclaim before CALLS'
+  } else {
+    if (inside)               return '⚡ Price inside bearish FVG — resistance zone active → PUTS on rejection'
+    if (currentPrice < fvg.bottom) return '✅ Price below bearish FVG — gap is resistance → PUTS on bounce to gap'
+    return '⚠️ Price above bearish FVG — gap may act as support → wait for rejection before PUTS'
+  }
+}
+
 // ── Indicator toggle button ───────────────────────────────────────────────────
 function IndBtn({ label, active, color, onClick }) {
   return (
@@ -114,10 +180,12 @@ function IndBtn({ label, active, color, onClick }) {
 export default function CandlestickChart({ symbol, height = 420 }) {
   const containerRef = useRef(null)
   const chartRef     = useRef(null)
-  const seriesRef    = useRef({})   // { candle, vol, ema9, ema21, sma50, sma200, bbUpper, bbLower, bbMid, rsi }
+  const seriesRef    = useRef({})
   const pivotLineRef = useRef([])
   const swingLineRef = useRef([])
   const prevDayRef   = useRef([])
+  const fvgLineRef   = useRef([])   // price lines for FVG zones
+  const rawDataRef   = useRef(null) // { ts, opens, highs, lows, closes } for FVG/Doji
 
   const [selIdx,   setSelIdx]   = useState(5)
   const [loading,  setLoading]  = useState(false)
@@ -131,6 +199,7 @@ export default function CandlestickChart({ symbol, height = 420 }) {
     ema9: false, ema21: false,
     bb: false, rsi: false,
     pivots: false, swings: false, prevDay: true,
+    fvg: false, doji: false,
   })
   const toggleInd = key => setInd(prev => ({ ...prev, [key]: !prev[key] }))
 
@@ -286,6 +355,9 @@ export default function CandlestickChart({ symbol, height = 420 }) {
           close: closes[i],
         })).filter(c => c.close != null))
 
+        // Store raw candle data for FVG / Doji detection
+        rawDataRef.current = { ts, opens, highs, lows, closes }
+
         // Volume
         s.vol.setData(ts.map((t, i) => ({
           time:  mkTime(t),
@@ -421,6 +493,59 @@ export default function CandlestickChart({ symbol, height = 420 }) {
     }
   }, [ind.pivots, ind.swings, ind.prevDay, pivotData, pivotTf, pivotType])
 
+  // ── Draw FVG zones + Doji markers ────────────────────────────────────────
+  useEffect(() => {
+    const s = seriesRef.current
+    if (!s.candle || !rawDataRef.current) return
+
+    const { ts, opens, highs, lows, closes } = rawDataRef.current
+    const mkTime = t => typeof t === 'string' ? t : Math.floor(t)
+    const lastClose = closes[closes.length - 1]
+
+    // Clear existing FVG lines
+    fvgLineRef.current.forEach(l => { try { s.candle.removePriceLine(l) } catch {} })
+    fvgLineRef.current = []
+
+    // Draw FVG zones
+    if (ind.fvg) {
+      const fvgs = detectFVGs(highs, lows, ts, lastClose)
+      fvgs.forEach(fvg => {
+        const col = fvg.type === 'bullish' ? '#22c55e' : '#ef4444'
+        try {
+          fvgLineRef.current.push(s.candle.createPriceLine({
+            price: fvg.top, color: col, lineWidth: 1, lineStyle: LineStyle.Dotted,
+            axisLabelVisible: true, title: fvg.type === 'bullish' ? 'FVG↑' : 'FVG↓',
+          }))
+          fvgLineRef.current.push(s.candle.createPriceLine({
+            price: fvg.bottom, color: col, lineWidth: 1, lineStyle: LineStyle.Dotted,
+            axisLabelVisible: false, title: '',
+          }))
+          // midpoint line (dashed, lighter)
+          fvgLineRef.current.push(s.candle.createPriceLine({
+            price: fvg.mid, color: col + '66', lineWidth: 1, lineStyle: LineStyle.Dashed,
+            axisLabelVisible: false, title: '',
+          }))
+        } catch {}
+      })
+    }
+
+    // Draw Doji markers
+    if (ind.doji && ts.length) {
+      const dojis = detectDojis(opens, highs, lows, closes, ts)
+      const markers = dojis.map(d => ({
+        time:     mkTime(d.time),
+        position: d.signal === 'bullish' ? 'belowBar' : 'aboveBar',
+        color:    d.signal === 'bullish' ? '#22c55e' : d.signal === 'bearish' ? '#ef4444' : '#fbbf24',
+        shape:    d.signal === 'bullish' ? 'arrowUp' : d.signal === 'bearish' ? 'arrowDown' : 'circle',
+        text:     d.icon + ' ' + d.type,
+        size:     1,
+      }))
+      try { s.candle.setMarkers(markers) } catch {}
+    } else {
+      try { s.candle.setMarkers([]) } catch {}
+    }
+  }, [ind.fvg, ind.doji, symbol, selIdx, refreshTick])
+
   return (
     <div>
       {/* ── Toolbar ────────────────────────────────────────────────────────── */}
@@ -453,6 +578,12 @@ export default function CandlestickChart({ symbol, height = 420 }) {
         <IndBtn label="PDH/PDL" active={ind.prevDay} color="#f87171" onClick={() => toggleInd('prevDay')} />
         <IndBtn label="Pivots"  active={ind.pivots}  color="#3b82f6" onClick={() => toggleInd('pivots')}  />
         <IndBtn label="Swings"  active={ind.swings}  color="#f97316" onClick={() => toggleInd('swings')}  />
+
+        <div style={{ width: 1, height: 14, background: 'var(--border-subtle)', margin: '0 2px' }} />
+
+        {/* Pattern recognition */}
+        <IndBtn label="FVG"  active={ind.fvg}  color="#a855f7" onClick={() => toggleInd('fvg')}  />
+        <IndBtn label="Doji" active={ind.doji} color="#fbbf24" onClick={() => toggleInd('doji')} />
 
         {/* Pivot sub-options */}
         {ind.pivots && (
@@ -547,6 +678,71 @@ export default function CandlestickChart({ symbol, height = 420 }) {
         </div>
       )}
 
+      {/* ── FVG + Doji signals panel ───────────────────────────────────────── */}
+      {(ind.fvg || ind.doji) && rawDataRef.current && (() => {
+        const { ts, opens, highs, lows, closes } = rawDataRef.current
+        const lastClose = closes[closes.length - 1]
+        const fvgs  = ind.fvg  ? detectFVGs(highs, lows, ts, lastClose) : []
+        const dojis = ind.doji ? detectDojis(opens, highs, lows, closes, ts) : []
+        if (!fvgs.length && !dojis.length) return null
+
+        return (
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {/* FVG signals */}
+            {fvgs.length > 0 && (
+              <div style={{ padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 6,
+                borderLeft: '3px solid #a855f7' }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#a855f7', textTransform: 'uppercase',
+                  letterSpacing: '0.06em', marginBottom: 6 }}>
+                  ◈ Fair Value Gaps ({fvgs.length} unfilled)
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {fvgs.map((fvg, i) => {
+                    const col = fvg.type === 'bullish' ? 'var(--green-text)' : 'var(--red-text)'
+                    const tip = fvgTip(fvg, lastClose)
+                    return (
+                      <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 10, color: col, fontWeight: 700, fontFamily: 'var(--font-mono)',
+                          whiteSpace: 'nowrap' }}>
+                          {fvg.type === 'bullish' ? '▲' : '▼'} ${fvg.bottom.toFixed(2)}–${fvg.top.toFixed(2)}
+                          <span style={{ fontSize: 8, marginLeft: 4, opacity: 0.7 }}>mid ${fvg.mid.toFixed(2)}</span>
+                        </span>
+                        <span style={{ fontSize: 9, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{tip}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Doji signals */}
+            {dojis.length > 0 && (
+              <div style={{ padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 6,
+                borderLeft: '3px solid #fbbf24' }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#fbbf24', textTransform: 'uppercase',
+                  letterSpacing: '0.06em', marginBottom: 6 }}>
+                  ◈ Recent Doji Candles ({dojis.length})
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {[...dojis].reverse().map((d, i) => {
+                    const col = d.signal === 'bullish' ? 'var(--green-text)'
+                              : d.signal === 'bearish' ? 'var(--red-text)' : 'var(--amber-text)'
+                    return (
+                      <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 10, color: col, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                          {d.icon} {d.type} Doji @ ${d.close.toFixed(2)}
+                        </span>
+                        <span style={{ fontSize: 9, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{d.optionsTip}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
       {/* ── Indicator legend ───────────────────────────────────────────────── */}
       <div style={{
         marginTop: 8, padding: '8px 10px',
@@ -565,6 +761,8 @@ export default function CandlestickChart({ symbol, height = 420 }) {
           { abbr: 'PDH / PDL', color: '#f87171', desc: 'Previous Day High / Low — key intraday reference; breakouts watched closely' },
           { abbr: 'PDC', color: '#94a3b8', desc: 'Previous Day Close — gap-up/gap-down reference for morning traders' },
           { abbr: 'SwH / SwL', color: '#f97316', desc: 'Swing High / Low — recent price-action extremes; act as S/R zones' },
+          { abbr: 'FVG ▲▼',   color: '#a855f7', desc: 'Fair Value Gap — 3-candle price gap; unfilled gaps act as support/resistance; price tends to return to fill them → options entry zone' },
+          { abbr: 'Doji 🐉🪦', color: '#fbbf24', desc: 'Doji candle — open ≈ close (tiny body = indecision). Dragonfly 🐉 = bullish reversal (CALLS). Gravestone 🪦 = bearish reversal (PUTS). Long-leg ✚ = straddle' },
         ].map(({ abbr, color, desc }) => (
           <div key={abbr} style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
             <span style={{ fontSize: 9, fontWeight: 700, color, whiteSpace: 'nowrap', minWidth: 64 }}>{abbr}</span>
