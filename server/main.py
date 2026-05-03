@@ -100,6 +100,20 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"Holdings init error: {e}")
         import traceback; traceback.print_exc()
+    # Pre-warm options cache in background so first user request is fast
+    import threading
+    def _prewarm():
+        try:
+            for sym in ['SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA']:
+                try:
+                    get_options_chain(sym)
+                    print(f"[prewarm] options cached: {sym}")
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"[prewarm] error: {e}")
+    threading.Thread(target=_prewarm, daemon=True).start()
+
     print("=== STARTUP COMPLETE ===")
     yield
 

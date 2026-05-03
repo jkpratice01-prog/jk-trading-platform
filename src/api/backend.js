@@ -52,21 +52,21 @@ export async function backendMovers(limit = 12) {
 
 export async function backendOptions(symbol, expiry = null) {
   const qs = expiry ? `?expiry=${expiry}` : ''
-  return apiFetch(`/api/options/${symbol}${qs}`)
+  return apiFetch(`/api/options/${symbol}${qs}`, { _timeout: 30000 })
 }
 
 export async function backendContractHistory(symbol, contractSymbol, expiry = null) {
   const qs = expiry ? `&expiry=${encodeURIComponent(expiry)}` : ''
-  return apiFetch(`/api/options/${symbol}/contract/history?contract_symbol=${encodeURIComponent(contractSymbol)}${qs}`)
+  return apiFetch(`/api/options/${symbol}/contract/history?contract_symbol=${encodeURIComponent(contractSymbol)}${qs}`, { _timeout: 30000 })
 }
 
 export async function backendOptionsFlow(symbol) {
-  return apiFetch(`/api/options/${symbol}/flow`)
+  return apiFetch(`/api/options/${symbol}/flow`, { _timeout: 25000 })
 }
 
 export async function backendOptionsFlowBatch(symbols) {
   if (!symbols?.length) return {}
-  const data = await apiFetch(`/api/options/flow/batch?symbols=${symbols.join(',')}`)
+  const data = await apiFetch(`/api/options/flow/batch?symbols=${symbols.join(',')}`, { _timeout: 25000 })
   return data?.flows || {}
 }
 
@@ -75,7 +75,7 @@ export async function backendEarnings(symbols) {
 }
 
 export async function backendIVRank(symbol) {
-  return apiFetch(`/api/options/${symbol}/ivrank`)
+  return apiFetch(`/api/options/${symbol}/ivrank`, { _timeout: 20000 })
 }
 
 export async function backendOIWall(symbol, expiry = null) {

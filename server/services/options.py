@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, date
 import yfinance as yf
 from server.db import get_db
 
-OPTIONS_TTL = 300  # 5 minutes
+OPTIONS_TTL = 900  # 15 minutes — reduces cold yfinance fetches on Railway
 
 
 def _norm_cdf(x: float) -> float:
