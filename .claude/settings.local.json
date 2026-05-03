@@ -78,7 +78,9 @@
       "Bash(fly auth *)",
       "Bash(fly apps *)",
       "Bash(security find-internet-password *)",
-      "Bash(security delete-internet-password *)"
+      "Bash(security delete-internet-password *)",
+      "Bash(pkill -f uvicorn)",
+      "Bash(pkill -9 -f uvicorn)"
     ]
   }
 }
