@@ -80,7 +80,10 @@
       "Bash(security find-internet-password *)",
       "Bash(security delete-internet-password *)",
       "Bash(pkill -f uvicorn)",
-      "Bash(pkill -9 -f uvicorn)"
+      "Bash(pkill -9 -f uvicorn)",
+      "Bash(pkill -f \"uvicorn\\\\|vite\")",
+      "Bash(echo \"Backend: $\\(curl -s http://localhost:8000/api/health\\)\")",
+      "Bash(echo \"Frontend: $\\(curl -s -o /dev/null -w '%{http_code}' http://localhost:5174\\)\")"
     ]
   }
 }

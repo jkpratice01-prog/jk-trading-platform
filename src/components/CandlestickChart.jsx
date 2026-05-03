@@ -401,7 +401,7 @@ export default function CandlestickChart({ symbol, height = 420 }) {
           chartRef.current?.timeScale().fitContent()
         }
       })
-      .catch(() => setError('Failed to load chart'))
+      .catch(err => { console.error('[Chart] load error:', err); setError('Failed to load chart') })
       .finally(() => setLoading(false))
   }, [symbol, selIdx, refreshTick])
 
