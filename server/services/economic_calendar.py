@@ -118,7 +118,7 @@ def _fetch_earnings(symbol: str, days_ahead: int) -> dict | None:
             return None
         now    = pd.Timestamp.now(tz='UTC')
         cutoff = now + pd.Timedelta(days=days_ahead)
-        future = ed[(ed.index > now) & (ed.index <= cutoff)]
+        future = ed[(ed.index.normalize() >= now.normalize()) & (ed.index <= cutoff)]
         if future.empty:
             return None
         dt   = future.index[-1]
