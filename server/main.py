@@ -332,7 +332,7 @@ async def earnings_calendar(symbols: str = Query(...)):
                 return None
             now    = pd.Timestamp.now(tz="UTC")
             cutoff = now + pd.Timedelta(days=35)   # next 5 weeks
-            future = ed[(ed.index > now) & (ed.index <= cutoff)]
+            future = ed[(ed.index.normalize() >= now.normalize()) & (ed.index <= cutoff)]
             if future.empty:
                 return None
             row    = future.iloc[-1]
