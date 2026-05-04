@@ -25,7 +25,7 @@ def _read_cache(symbol: str, interval: str, days: int):
         conn   = get_db()
         cutoff = (datetime.utcnow() - timedelta(days=days + 1)).isoformat()
         rows   = conn.execute(
-            "SELECT bar_time,open,high,low,close,volume FROM chart_data "
+            "SELECT bar_time AS t,open AS o,high AS h,low AS l,close AS c,volume AS v FROM chart_data "
             "WHERE symbol=? AND interval=? AND bar_time>=? ORDER BY bar_time ASC",
             (symbol, interval, cutoff)
         ).fetchall()
