@@ -121,7 +121,7 @@ export default function PreMarketTab({ onAnalyze }) {
               </span>
               <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Opened above prior close</span>
             </div>
-            <div style={{ overflowX: 'auto' }}>
+            <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 320 }}>
               <MoverTable rows={gapUps} onAnalyze={onAnalyze} />
             </div>
           </div>
@@ -135,7 +135,7 @@ export default function PreMarketTab({ onAnalyze }) {
                 </span>
                 <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Opened below prior close</span>
               </div>
-              <div style={{ overflowX: 'auto' }}>
+              <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 320 }}>
                 <MoverTable rows={gapDowns} onAnalyze={onAnalyze} />
               </div>
             </div>

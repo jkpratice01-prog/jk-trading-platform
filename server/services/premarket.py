@@ -10,6 +10,7 @@ UNIVERSE = [
     'CRWD','PANW','MSTR','HOOD','RIVN','NIO','LCID','SOFI','AFRM','UPST',
     'SPY','QQQ','IWM','SQQQ','TQQQ','UVXY','VXX',
     'ORCL','ADBE','NOW','SHOP','SQ','PYPL','UBER','LYFT','ABNB','DASH',
+    'EBAY','ETSY','AMGN','GILD','BMY','MRK','JNJ','CVS','WMT','TGT',
 ]
 
 

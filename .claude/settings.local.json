@@ -83,7 +83,14 @@
       "Bash(pkill -9 -f uvicorn)",
       "Bash(pkill -f \"uvicorn\\\\|vite\")",
       "Bash(echo \"Backend: $\\(curl -s http://localhost:8000/api/health\\)\")",
-      "Bash(echo \"Frontend: $\\(curl -s -o /dev/null -w '%{http_code}' http://localhost:5174\\)\")"
+      "Bash(echo \"Frontend: $\\(curl -s -o /dev/null -w '%{http_code}' http://localhost:5174\\)\")",
+      "Bash(kill 94312)",
+      "Bash(uvicorn main:app --reload --port 8000)",
+      "Bash(echo \"backend PID: $!\")",
+      "Bash(echo \"frontend PID: $!\")",
+      "Read(//private/tmp/**)",
+      "Bash(server/venv/bin/uvicorn server.main:app --reload --port 8000)",
+      "Bash(echo \"PID: $!\")"
     ]
   }
 }
