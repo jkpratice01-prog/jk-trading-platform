@@ -98,7 +98,8 @@
       "Bash(fly logs *)",
       "Bash(fly info *)",
       "Bash(fly ips *)",
-      "Bash(fly services *)"
+      "Bash(fly services *)",
+      "Bash(fly machine *)"
     ]
   }
 }
