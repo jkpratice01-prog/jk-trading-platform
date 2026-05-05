@@ -658,9 +658,19 @@ async def premarket(limit: int = 30):
 
 # ── Unusual options flow scanner ─────────────────────────────────────────────
 
+_flow_scan_cache: dict = {}
+_FLOW_SCAN_TTL = 900  # 15 minutes
+
 @app.get("/api/flow/scan")
 async def flow_scan(limit: int = 50):
+    import time
+    cached = _flow_scan_cache.get(limit)
+    if cached:
+        result, ts = cached
+        if time.time() - ts < _FLOW_SCAN_TTL:
+            return result
     result = await asyncio.to_thread(scan_unusual_flow, 2.0, limit)
+    _flow_scan_cache[limit] = (result, time.time())
     return result
 
 
@@ -921,10 +931,20 @@ def major_holders(symbol: str):
 
 # ── Institutional flow tracker ────────────────────────────────────────────────
 
+_inst_flow_cache: dict = {}
+_INST_FLOW_TTL = 900  # 15 minutes
+
 @app.get("/api/institutional-flow")
 async def institutional_flow_scan(limit: int = 50):
     """Scan for institutional flow across major symbols."""
+    import time
+    cached = _inst_flow_cache.get(limit)
+    if cached:
+        result, ts = cached
+        if time.time() - ts < _INST_FLOW_TTL:
+            return result
     result = await asyncio.to_thread(get_institutional_flow, None, limit)
+    _inst_flow_cache[limit] = (result, time.time())
     return result
 
 

@@ -88,7 +88,7 @@ def get_institutional_flow(symbol: str | None = None, limit: int = 50) -> dict:
     symbols = [symbol.upper()] if symbol else SCAN_SYMBOLS[:limit]
 
     flows = []
-    with ThreadPoolExecutor(max_workers=12) as pool:
+    with ThreadPoolExecutor(max_workers=4) as pool:
         futures = {pool.submit(_analyze_symbol, s): s for s in symbols}
         for fut in as_completed(futures, timeout=45):
             result = fut.result()

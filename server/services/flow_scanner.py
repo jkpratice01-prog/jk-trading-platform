@@ -92,7 +92,8 @@ def scan_unusual_flow(min_ratio: float = 2.0, limit: int = 50) -> dict:
 
     def _worker(sym):
         try:
-            t = yf.Ticker(sym)
+            from server.services.yf_session import ticker as yf_ticker
+            t = yf_ticker(sym)
             price = t.fast_info.last_price
             if not price:
                 return []
@@ -100,7 +101,7 @@ def scan_unusual_flow(min_ratio: float = 2.0, limit: int = 50) -> dict:
         except Exception:
             return []
 
-    with ThreadPoolExecutor(max_workers=8) as pool:
+    with ThreadPoolExecutor(max_workers=4) as pool:
         futures = {pool.submit(_worker, s): s for s in SCAN_UNIVERSE}
         for fut in as_completed(futures, timeout=60):
             all_flow.extend(fut.result() or [])
