@@ -44,7 +44,7 @@ def _nearest_earnings(ticker) -> tuple | None:
             return None
         now = pd.Timestamp.now(tz='UTC')
         cutoff = now + pd.Timedelta(days=30)
-        future = ed[(ed.index > now) & (ed.index <= cutoff)]
+        future = ed[(ed.index.normalize() >= now.normalize()) & (ed.index <= cutoff)]
         if future.empty:
             return None
         dt = future.index[-1]

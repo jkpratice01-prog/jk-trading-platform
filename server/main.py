@@ -876,10 +876,21 @@ async def stock_deep(symbol: str):
 
 # ── Pre-earnings institutional flow ──────────────────────────────────────────
 
+_flow_cache: dict = {}
+_FLOW_TTL = 900   # 15 minutes — scan is expensive (240 yfinance calls)
+
 @app.get("/api/earnings-flow/scan")
 async def earnings_flow_scan(days_ahead: int = 21, limit: int = 60):
     """Scan for institutional pre-earnings positioning: call buying surges, Vol/OI spikes, stock volume."""
+    import time
+    cache_key = (days_ahead, limit)
+    cached = _flow_cache.get(cache_key)
+    if cached:
+        result, ts = cached
+        if time.time() - ts < _FLOW_TTL:
+            return result
     result = await asyncio.to_thread(scan_earnings_flow, days_ahead, limit)
+    _flow_cache[cache_key] = (result, time.time())
     return result
 
 
