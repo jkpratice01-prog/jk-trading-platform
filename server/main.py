@@ -868,9 +868,20 @@ async def earnings_history(symbol: str, quarters: int = 8):
 
 # ── Deep stock info (fundamentals, levels, short interest, expected move) ────
 
+_deep_cache: dict = {}
+_DEEP_TTL = 1800   # 30 minutes — info/earnings_dates/options chain = 4 yfinance calls
+
 @app.get("/api/stock/{symbol}/deep")
 async def stock_deep(symbol: str):
-    result = await asyncio.to_thread(get_deep_info, symbol.upper())
+    import time
+    sym = symbol.upper()
+    cached = _deep_cache.get(sym)
+    if cached:
+        result, ts = cached
+        if time.time() - ts < _DEEP_TTL:
+            return result
+    result = await asyncio.to_thread(get_deep_info, sym)
+    _deep_cache[sym] = (result, time.time())
     return result
 
 
