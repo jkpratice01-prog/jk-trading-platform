@@ -1,40 +1,34 @@
 # Fly.io configuration — jk-trading-backend
-app = "jk-trading-backend"
+app            = "jk-trading-backend"
 primary_region = "iad"
 
 [build]
   dockerfile = "Dockerfile.backend"
 
 [env]
-  DB_PATH = "/data/trading.db"
+  DB_PATH     = "/data/trading.db"
+  PORT        = "8080"
+  CORS_ORIGIN = "*"
 
-[mounts]
-  source = "trading_data"
+[[mounts]]
+  source      = "trading_data"
   destination = "/data"
 
-[[services]]
-  protocol = "tcp"
-  internal_port = 8000
+[http_service]
+  internal_port        = 8080
+  force_https          = true
+  auto_stop_machines   = false
+  auto_start_machines  = true
+  min_machines_running = 1
 
-  [[services.ports]]
-    port = 80
-    handlers = ["http"]
+  [[http_service.checks]]
+    interval     = "30s"
+    timeout      = "10s"
+    grace_period = "15s"
+    method       = "GET"
+    path         = "/api/health"
 
-  [[services.ports]]
-    port = 443
-    handlers = ["tls", "http"]
-
-  [services.concurrency]
-    type = "requests"
-    hard_limit = 25
-    soft_limit = 20
-
-  [[services.http_checks]]
-    interval = "30s"
-    timeout = "10s"
-    path = "/api/health"
-
-[vm]
-  memory = "512mb"
+[[vm]]
+  memory   = "512mb"
   cpu_kind = "shared"
-  cpus = 1
+  cpus     = 1
