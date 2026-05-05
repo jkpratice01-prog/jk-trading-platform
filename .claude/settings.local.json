@@ -90,7 +90,12 @@
       "Bash(echo \"frontend PID: $!\")",
       "Read(//private/tmp/**)",
       "Bash(server/venv/bin/uvicorn server.main:app --reload --port 8000)",
-      "Bash(echo \"PID: $!\")"
+      "Bash(echo \"PID: $!\")",
+      "Bash(fly version *)",
+      "Bash(fly status *)",
+      "Bash(fly volumes *)",
+      "Bash(fly deploy *)",
+      "Bash(fly logs *)"
     ]
   }
 }
