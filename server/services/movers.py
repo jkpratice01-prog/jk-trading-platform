@@ -41,9 +41,9 @@ def _fetch_quote(sym: str) -> dict | None:
 
 def get_movers(limit: int = 12) -> dict:
     results = []
-    with ThreadPoolExecutor(max_workers=10) as pool:
+    with ThreadPoolExecutor(max_workers=5) as pool:
         futs = {pool.submit(_fetch_quote, s): s for s in MOVER_UNIVERSE}
-        for fut in as_completed(futs, timeout=20):
+        for fut in as_completed(futs, timeout=25):
             r = fut.result()
             if r:
                 results.append(r)

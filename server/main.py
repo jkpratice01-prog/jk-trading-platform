@@ -180,9 +180,19 @@ async def chart(symbol: str, days: int = 60, interval: str = "1d"):
 
 # ── Market movers ─────────────────────────────────────────────────────────────
 
+_movers_cache: dict = {}   # {limit: (result, timestamp)}
+_MOVERS_TTL = 300          # 5 minutes
+
 @app.get("/api/movers")
 async def movers(limit: int = 12):
+    import time
+    cached = _movers_cache.get(limit)
+    if cached:
+        result, ts = cached
+        if time.time() - ts < _MOVERS_TTL:
+            return result
     result = await asyncio.to_thread(get_movers, limit)
+    _movers_cache[limit] = (result, time.time())
     return result
 
 
