@@ -146,6 +146,12 @@ CREATE TABLE IF NOT EXISTS holdings_price_history (
     recorded_at TEXT    DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_hph ON holdings_price_history(symbol, recorded_at DESC);
+
+CREATE TABLE IF NOT EXISTS earnings_cache (
+    symbol      TEXT PRIMARY KEY,
+    result_json TEXT,
+    cached_at   TEXT NOT NULL
+);
 """
 
 def get_db():

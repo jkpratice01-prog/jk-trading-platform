@@ -145,11 +145,7 @@ export default function Dashboard({ marketData, gainers, losers, onAnalyze, onRe
   async function loadEarnings() {
     setLoadEarn(true)
     try {
-      // Fetch earnings for options watchlist + major names not in watchlist
-      const base = ['AAPL','MSFT','NVDA','GOOGL','META','AMZN','TSLA','AMD','PLTR',
-                    'NFLX','CRM','ORCL','SHOP','COIN','JPM','BAC','GS','XOM','LLY','MRNA']
-      const all  = [...new Set([...optSyms, ...base])]
-      const d    = await backendEarnings(all)
+      const d = await backendEarnings(optSyms)
       if (d?.earnings?.length) setEarnData(d.earnings)
     } catch(e) { console.warn('Earnings load failed', e) }
     setLoadEarn(false)

@@ -329,27 +329,67 @@ _EARNINGS_TTL = 3600        # 1 hour
 @app.get("/api/earnings")
 async def earnings_calendar(symbols: str = Query(...)):
     """Upcoming earnings for a list of symbols — yfinance earnings_dates."""
-    import time, pandas as pd
+    import time, json, pandas as pd
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     syms = [s.strip().upper() for s in symbols.split(",") if s.strip()]
 
+    def _load_db_cache(sym):
+        """Load cached result from SQLite, returns (result, timestamp) or None."""
+        try:
+            conn = get_db()
+            row  = conn.execute(
+                "SELECT result_json, cached_at FROM earnings_cache WHERE symbol=?", (sym,)
+            ).fetchone()
+            conn.close()
+            if row and row["result_json"]:
+                ts = pd.Timestamp(row["cached_at"]).timestamp()
+                return (json.loads(row["result_json"]), ts)
+        except Exception:
+            pass
+        return None
+
+    def _save_db_cache(sym, result):
+        try:
+            conn = get_db()
+            conn.execute(
+                "INSERT OR REPLACE INTO earnings_cache(symbol, result_json, cached_at) VALUES(?,?,datetime('now'))",
+                (sym, json.dumps(result) if result else None)
+            )
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
     def _fetch(sym):
         now_ts = time.time()
+        # 1. in-memory cache
         if sym in _earnings_cache:
             res, ts = _earnings_cache[sym]
             if now_ts - ts < _EARNINGS_TTL:
                 return res
+        # 2. SQLite cache (survives restarts)
+        db_hit = _load_db_cache(sym)
+        if db_hit:
+            res, ts = db_hit
+            if now_ts - ts < _EARNINGS_TTL:
+                _earnings_cache[sym] = (res, ts)
+                return res
+        # 3. fetch from yfinance
         try:
             from server.services.yf_session import ticker as yf_ticker
             t  = yf_ticker(sym)
             ed = t.earnings_dates
             if ed is None or ed.empty:
+                _earnings_cache[sym] = (None, now_ts)
+                _save_db_cache(sym, None)
                 return None
             now    = pd.Timestamp.now(tz="UTC")
-            cutoff = now + pd.Timedelta(days=35)   # next 5 weeks
+            cutoff = now + pd.Timedelta(days=35)
             future = ed[(ed.index.normalize() >= now.normalize()) & (ed.index <= cutoff)]
             if future.empty:
+                _earnings_cache[sym] = (None, now_ts)
+                _save_db_cache(sym, None)
                 return None
             row    = future.iloc[-1]
             dt     = future.index[-1]
@@ -362,10 +402,11 @@ async def earnings_calendar(symbols: str = Query(...)):
                 "epsEstimate": round(float(eps), 2) if eps and str(eps) != "nan" else None,
                 "when":        "AMC",
             }
-            _earnings_cache[sym] = (result, time.time())
+            _earnings_cache[sym] = (result, now_ts)
+            _save_db_cache(sym, result)
             return result
         except Exception:
-            _earnings_cache[sym] = (None, time.time())
+            _earnings_cache[sym] = (None, now_ts)
             return None
 
     results = []
