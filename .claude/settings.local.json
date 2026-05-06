@@ -98,7 +98,13 @@
       "Bash(fly logs *)",
       "Bash(fly info *)",
       "Bash(fly ips *)",
-      "Bash(fly services *)"
+      "Bash(fly services *)",
+      "Bash(fly machine *)",
+      "WebFetch(domain:claude.ai)",
+      "Bash(pip show *)",
+      "Bash(venv/bin/python -c \"import yfinance as yf; fi = yf.Ticker\\('AAPL'\\).fast_info; print\\(type\\(fi\\)\\); print\\(dir\\(fi\\)\\)\")",
+      "Bash(venv/bin/python -c \"from server.services.ath_scanner import scan_ath_catalysts, get_sector_momentum; print\\('OK'\\)\")",
+      "Bash(server/venv/bin/python *)"
     ]
   }
 }

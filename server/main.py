@@ -55,6 +55,12 @@ except Exception as e:
     print(f"Failed to import earnings flow: {e}")
 
 try:
+    from server.services.ath_scanner import scan_ath_catalysts, get_sector_momentum, get_stock_catalyst
+    print("ATH catalyst scanner imported successfully")
+except Exception as e:
+    print(f"Failed to import ATH scanner: {e}")
+
+try:
     from server.services.deep_info import get_deep_info
     print("Deep info imported successfully")
 except Exception as e:
@@ -658,9 +664,19 @@ async def premarket(limit: int = 30):
 
 # ── Unusual options flow scanner ─────────────────────────────────────────────
 
+_flow_scan_cache: dict = {}
+_FLOW_SCAN_TTL = 900  # 15 minutes
+
 @app.get("/api/flow/scan")
 async def flow_scan(limit: int = 50):
+    import time
+    cached = _flow_scan_cache.get(limit)
+    if cached:
+        result, ts = cached
+        if time.time() - ts < _FLOW_SCAN_TTL:
+            return result
     result = await asyncio.to_thread(scan_unusual_flow, 2.0, limit)
+    _flow_scan_cache[limit] = (result, time.time())
     return result
 
 
@@ -868,9 +884,20 @@ async def earnings_history(symbol: str, quarters: int = 8):
 
 # ── Deep stock info (fundamentals, levels, short interest, expected move) ────
 
+_deep_cache: dict = {}
+_DEEP_TTL = 1800   # 30 minutes — info/earnings_dates/options chain = 4 yfinance calls
+
 @app.get("/api/stock/{symbol}/deep")
 async def stock_deep(symbol: str):
-    result = await asyncio.to_thread(get_deep_info, symbol.upper())
+    import time
+    sym = symbol.upper()
+    cached = _deep_cache.get(sym)
+    if cached:
+        result, ts = cached
+        if time.time() - ts < _DEEP_TTL:
+            return result
+    result = await asyncio.to_thread(get_deep_info, sym)
+    _deep_cache[sym] = (result, time.time())
     return result
 
 
@@ -894,6 +921,49 @@ async def earnings_flow_scan(days_ahead: int = 21, limit: int = 60):
     return result
 
 
+# ── ATH Catalyst Scanner ─────────────────────────────────────────────────────
+
+_ath_cache: dict = {}
+_ATH_TTL = 900  # 15 minutes
+
+@app.get("/api/scan/ath-catalyst")
+async def ath_catalyst_scan(min_score: int = 2):
+    """Scan for stocks near ATH with upcoming earnings, volume surges, and analyst upside."""
+    import time
+    cached = _ath_cache.get(min_score)
+    if cached:
+        result, ts = cached
+        if time.time() - ts < _ATH_TTL:
+            return result
+    result = await asyncio.to_thread(scan_ath_catalysts, min_score)
+    _ath_cache[min_score] = (result, time.time())
+    return result
+
+
+@app.get("/api/stock/{symbol}/catalyst")
+async def stock_catalyst(symbol: str):
+    """ATH Catalyst score + signals for a single stock — used by the Analyzer."""
+    result = await asyncio.to_thread(get_stock_catalyst, symbol.upper())
+    return result
+
+
+_sector_cache: dict = {}
+_SECTOR_TTL = 900
+
+@app.get("/api/scan/sector-momentum")
+async def sector_momentum():
+    """Fetch 1d / 5d / 20d performance for major sector and thematic ETFs."""
+    import time
+    cached = _sector_cache.get('data')
+    if cached:
+        result, ts = cached
+        if time.time() - ts < _SECTOR_TTL:
+            return result
+    result = await asyncio.to_thread(get_sector_momentum)
+    _sector_cache['data'] = (result, time.time())
+    return result
+
+
 # ── Institutional holders ─────────────────────────────────────────────────────
 
 @app.get("/api/institutions/{symbol}/holders")
@@ -910,10 +980,20 @@ def major_holders(symbol: str):
 
 # ── Institutional flow tracker ────────────────────────────────────────────────
 
+_inst_flow_cache: dict = {}
+_INST_FLOW_TTL = 900  # 15 minutes
+
 @app.get("/api/institutional-flow")
 async def institutional_flow_scan(limit: int = 50):
     """Scan for institutional flow across major symbols."""
+    import time
+    cached = _inst_flow_cache.get(limit)
+    if cached:
+        result, ts = cached
+        if time.time() - ts < _INST_FLOW_TTL:
+            return result
     result = await asyncio.to_thread(get_institutional_flow, None, limit)
+    _inst_flow_cache[limit] = (result, time.time())
     return result
 
 

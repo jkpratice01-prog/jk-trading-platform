@@ -19,8 +19,11 @@ import StrategyBuilder      from './components/StrategyBuilder.jsx'
 import NewsImpactScanner    from './components/NewsImpactScanner.jsx'
 import InstitutionalTracker from './components/InstitutionalTracker.jsx'
 import InstitutionalFlowTracker from './components/InstitutionalFlowTracker.jsx'
-import EarningsFlowScanner from './components/EarningsFlowScanner.jsx'
-import EconomicCalendar   from './components/EconomicCalendar.jsx'
+import EarningsFlowScanner  from './components/EarningsFlowScanner.jsx'
+import ATHCatalystScanner  from './components/ATHCatalystScanner.jsx'
+import AlertsTab           from './components/AlertsTab.jsx'
+import ReplayChart         from './components/ReplayChart.jsx'
+import EconomicCalendar    from './components/EconomicCalendar.jsx'
 import PositionSizer      from './components/PositionSizer.jsx'
 import CryptoHub          from './components/CryptoHub.jsx'
 
@@ -37,7 +40,10 @@ const TABS = [
   { id: 'scanner',     label: 'Scanner'          },
   { id: 'premarket',   label: 'Pre-Market'       },
   { id: 'flow',        label: 'Flow'             },
-  { id: 'earnings-flow', label: '📅 Earnings Flow' },
+  { id: 'earnings-flow',  label: '📅 Earnings Flow'  },
+  { id: 'ath-catalyst',  label: '🎯 ATH Catalyst'   },
+  { id: 'alerts',        label: '🔔 Alerts'          },
+  { id: 'replay',        label: '📽 Replay'          },
   { id: 'intraday',    label: 'Intraday'         },
   { id: 'strategy',    label: 'Strategy'         },
   { id: 'compare',     label: 'Compare'          },
@@ -141,8 +147,9 @@ export default function App() {
   }, [theme])
 
   useEffect(() => {
-    document.body.classList.toggle('font-large',  fontSize === 'large')
     document.body.classList.toggle('font-normal', fontSize === 'normal')
+    document.body.classList.toggle('font-large',  fontSize === 'large')
+    document.body.classList.toggle('font-xlarge', fontSize === 'xlarge')
     localStorage.setItem('tp_fontsize', fontSize)
   }, [fontSize])
 
@@ -235,22 +242,28 @@ export default function App() {
               {theme === 'dark' ? '☀️' : '🌙'}
             </button>
 
-            {/* Font size toggle */}
-            <button
-              onClick={() => setFontSize(s => s === 'normal' ? 'large' : 'normal')}
-              title={fontSize === 'normal' ? 'Increase text size' : 'Decrease text size'}
-              style={{
-                fontSize: fontSize === 'normal' ? '11px' : '13px',
-                fontWeight: 700, padding: '3px 7px',
-                border: '0.5px solid var(--border-subtle)',
-                borderRadius: 'var(--r-md)', cursor: 'pointer',
-                background: fontSize === 'large' ? 'var(--blue-dim)' : 'var(--bg-tertiary)',
-                color: fontSize === 'large' ? 'var(--blue)' : 'var(--text-secondary)',
-                lineHeight: 1, letterSpacing: '-0.02em',
-              }}
-            >
-              {fontSize === 'normal' ? 'A+' : 'A−'}
-            </button>
+            {/* Font size — A / A+ / A++ */}
+            <div style={{ display: 'flex', gap: 2, alignItems: 'center', border: '0.5px solid var(--border-subtle)', borderRadius: 'var(--r-md)', overflow: 'hidden' }}>
+              {[
+                { key: 'normal', label: 'A',   sz: '10px' },
+                { key: 'large',  label: 'A+',  sz: '12px' },
+                { key: 'xlarge', label: 'A++', sz: '13px' },
+              ].map(({ key, label, sz }) => (
+                <button
+                  key={key}
+                  onClick={() => setFontSize(key)}
+                  title={`Font size: ${label}`}
+                  style={{
+                    fontSize: sz, fontWeight: 700, padding: '3px 7px',
+                    border: 'none', cursor: 'pointer', lineHeight: 1,
+                    background: fontSize === key ? 'var(--blue-dim)' : 'var(--bg-tertiary)',
+                    color:      fontSize === key ? 'var(--blue)'     : 'var(--text-secondary)',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -344,6 +357,15 @@ export default function App() {
         )}
         {activeTab === 'earnings-flow' && (
           <EarningsFlowScanner onAnalyze={openAnalyzer} />
+        )}
+        {activeTab === 'ath-catalyst' && (
+          <ATHCatalystScanner onAnalyze={openAnalyzer} />
+        )}
+        {activeTab === 'alerts' && (
+          <AlertsTab onAnalyze={openAnalyzer} />
+        )}
+        {activeTab === 'replay' && (
+          <ReplayChart />
         )}
         {activeTab === 'calendar' && (
           <EconomicCalendar onAnalyze={openAnalyzer} />

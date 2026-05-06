@@ -93,9 +93,10 @@
 [data-theme="light"] ::-webkit-scrollbar-track  { background: var(--bg-tertiary);  }
 [data-theme="light"] ::-webkit-scrollbar-thumb  { background: var(--border-default); }
 
-/* ── Font size scales — zoom on body scales all px values ─── */
-body.font-large  { zoom: 1.18; }
+/* ── Font size scales ────────────────────────────────────── */
 body.font-normal { zoom: 1;    }
+body.font-large  { zoom: 1.18; }
+body.font-xlarge { zoom: 1.36; }
 
 * {
   margin: 0;

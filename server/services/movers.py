@@ -1,8 +1,8 @@
 """Market movers — top gainers and losers via yfinance."""
-import yfinance as yf
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from server.db import get_db
+from server.services.yf_session import ticker as yf_ticker
 
 MOVER_UNIVERSE = [
     'AAPL','MSFT','NVDA','GOOGL','META','AMZN','TSLA','AMD','PLTR','COIN',
@@ -14,7 +14,7 @@ MOVER_UNIVERSE = [
 
 def _fetch_quote(sym: str) -> dict | None:
     try:
-        t    = yf.Ticker(sym)
+        t    = yf_ticker(sym)
         info = t.fast_info
         price = float(info.last_price or 0)
         prev  = float(info.previous_close or 0)
@@ -39,14 +39,47 @@ def _fetch_quote(sym: str) -> dict | None:
         return None
 
 
+def _load_from_db(limit: int) -> dict | None:
+    """Return last cached movers from DB if available."""
+    try:
+        conn = get_db()
+        gainers = [dict(r) for r in conn.execute(
+            "SELECT symbol,price,change_pct,volume,avg_volume,vol_ratio,market_cap FROM market_movers "
+            "WHERE mover_type='gainer' ORDER BY fetched_at DESC LIMIT ?", (limit,)
+        ).fetchall()]
+        losers = [dict(r) for r in conn.execute(
+            "SELECT symbol,price,change_pct,volume,avg_volume,vol_ratio,market_cap FROM market_movers "
+            "WHERE mover_type='loser' ORDER BY fetched_at DESC LIMIT ?", (limit,)
+        ).fetchall()]
+        conn.close()
+        if not gainers and not losers:
+            return None
+        def _reshape(rows):
+            return [{'symbol': r['symbol'], 'regularMarketPrice': r['price'],
+                     'regularMarketChangePercent': r['change_pct'],
+                     'regularMarketVolume': r['volume'],
+                     'averageDailyVolume3Month': r['avg_volume'],
+                     'volRatio': r['vol_ratio'], 'marketCap': r['market_cap']} for r in rows]
+        return {'gainers': _reshape(gainers), 'losers': _reshape(losers),
+                'fetchedAt': datetime.utcnow().isoformat(), 'fromCache': True}
+    except Exception:
+        return None
+
+
 def get_movers(limit: int = 12) -> dict:
     results = []
-    with ThreadPoolExecutor(max_workers=5) as pool:
-        futs = {pool.submit(_fetch_quote, s): s for s in MOVER_UNIVERSE}
-        for fut in as_completed(futs, timeout=25):
-            r = fut.result()
-            if r:
-                results.append(r)
+    try:
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            futs = {pool.submit(_fetch_quote, s): s for s in MOVER_UNIVERSE}
+            for fut in as_completed(futs, timeout=25):
+                r = fut.result()
+                if r:
+                    results.append(r)
+    except Exception:
+        pass
+
+    if not results:
+        return _load_from_db(limit) or {'gainers': [], 'losers': [], 'fetchedAt': datetime.utcnow().isoformat()}
 
     results.sort(key=lambda x: x['regularMarketChangePercent'], reverse=True)
     gainers = results[:limit]

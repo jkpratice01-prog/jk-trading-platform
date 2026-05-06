@@ -242,6 +242,20 @@ export async function backendEarningsFlow(daysAhead = 21) {
   return apiFetch(`/api/earnings-flow/scan?days_ahead=${daysAhead}`, { _timeout: 120000 })
 }
 
+// ── ATH Catalyst — single stock (used by Analyzer) ───────────────────────────
+export async function backendStockCatalyst(symbol) {
+  return apiFetch(`/api/stock/${symbol}/catalyst`, { _timeout: 30000 })
+}
+
+// ── ATH Catalyst Scanner ──────────────────────────────────────────────────────
+export async function backendATHCatalyst(minScore = 2) {
+  return apiFetch(`/api/scan/ath-catalyst?min_score=${minScore}`, { _timeout: 180000 })
+}
+
+export async function backendSectorMomentum() {
+  return apiFetch('/api/scan/sector-momentum', { _timeout: 30000 })
+}
+
 // ── Institutional holders ─────────────────────────────────────────────────────
 export async function backendInstitutionalHolders(symbol) {
   return apiFetch(`/api/institutions/${symbol}/holders`)
