@@ -1,5 +1,5 @@
 {
-  "name": "jk-trading-platform",
+  "name": "learnandplay-platform",
   "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
