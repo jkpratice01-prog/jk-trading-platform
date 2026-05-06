@@ -1,7 +1,10 @@
 // Central client for our Python FastAPI backend.
-// Dev: Vite proxies /api/* → localhost:8000
-// Prod: set VITE_API_URL=https://your-backend.fly.dev (or render/railway URL)
-const API_BASE = import.meta.env.VITE_API_URL || ''
+// Dev: Vite proxies /api/* → localhost:8000 (VITE_API_URL is empty, proxy handles it)
+// Prod: VITE_API_URL env var takes priority; falls back to hardcoded Fly.io URL
+const IS_DEV   = import.meta.env.DEV
+const API_BASE = IS_DEV
+  ? ''
+  : (import.meta.env.VITE_API_URL || 'https://jk-trading-backend.fly.dev')
 
 async function apiFetch(path, options = {}) {
   const timeout = options._timeout ?? 15000
