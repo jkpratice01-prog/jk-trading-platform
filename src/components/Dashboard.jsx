@@ -93,7 +93,12 @@ export default function Dashboard({ marketData, gainers, losers, onAnalyze, onRe
   // Flow data from DB (call vs put premium per ticker)
   const [flowData,   setFlowData]   = useState({})
 
-  useEffect(() => { loadSectors(); loadOptions(); loadEarnings() }, [])
+  useEffect(() => {
+    loadSectors()
+    const t1 = setTimeout(() => loadOptions(),  1500)
+    const t2 = setTimeout(() => loadEarnings(), 3000)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
+  }, [])
   useEffect(() => { if (optSyms.length) loadOptions() }, [optSyms])
 
   // Auto-refresh: when App signals a new tick, refresh options watchlist + open chain
