@@ -7,84 +7,109 @@ on:
     branches: [ main, develop ]
 
 jobs:
+  # ── Fly.io backend — only when server code changes ──────────────────────────
+  fly-deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for backend changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - 'server/**'
+              - 'Dockerfile.backend'
+              - 'fly.toml'
+
+      - name: Setup flyctl
+        if: steps.changes.outputs.backend == 'true'
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly.io
+        if: steps.changes.outputs.backend == 'true'
+        run: fly deploy --app jk-trading-backend --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  # ── Frontend build & test ────────────────────────────────────────────────────
   build:
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
         node-version: [18.x, 20.x]
-
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v3
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
 
-    - name: Install dependencies
-      run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-    - name: Run build
-      run: npm run build
-      env:
-        VITE_ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY || 'demo' }}
+      - name: Run build
+        run: npm run build
+        env:
+          VITE_ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY || 'demo' }}
+          VITE_API_URL: https://jk-trading-backend.fly.dev
 
-    - name: Check build output
-      run: |
-        if [ ! -d "dist" ]; then
-          echo "Build failed: dist folder not created"
-          exit 1
-        fi
+      - name: Check build output
+        run: |
+          if [ ! -d "dist" ]; then
+            echo "Build failed: dist folder not created"
+            exit 1
+          fi
 
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: dist-node-${{ matrix.node-version }}
-        path: dist/
-        retention-days: 1
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: dist-node-${{ matrix.node-version }}
+          path: dist/
+          retention-days: 1
 
   test:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: Use Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: 18.x
-        cache: 'npm'
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18.x
+          cache: 'npm'
 
-    - name: Install dependencies
-      run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-    - name: Lint code
-      run: npm run lint 2>/dev/null || echo "No lint script found"
+      - name: Lint code
+        run: npm run lint 2>/dev/null || echo "No lint script found"
 
-    - name: Build verification
-      run: npm run build
-      env:
-        VITE_ALPHA_VANTAGE_API_KEY: 'demo'
+      - name: Build verification
+        run: npm run build
+        env:
+          VITE_ALPHA_VANTAGE_API_KEY: 'demo'
+          VITE_API_URL: https://jk-trading-backend.fly.dev
 
   deploy:
     needs: [build, test]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: Deploy to Vercel
-      uses: amondnet/vercel-action@v25
-      with:
-        vercel-token: ${{ secrets.VERCEL_TOKEN }}
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-        vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-        alias-domains: |
-          trading-platform.vercel.app
-      env:
-        VITE_ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
-
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          alias-domains: |
+            trading-platform.vercel.app
+        env:
+          VITE_ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
