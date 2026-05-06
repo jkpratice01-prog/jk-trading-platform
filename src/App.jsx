@@ -1,31 +1,32 @@
 // src/App.jsx
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import './styles/globals.css'
 import './styles/components.css'
 
-import Dashboard        from './components/Dashboard.jsx'
-import Analyzer         from './components/Analyzer.jsx'
-import Compare          from './components/Compare.jsx'
-import Tracker          from './components/Tracker.jsx'
-import ExportTab        from './components/ExportTab.jsx'
-import ScannerTab       from './components/ScannerTab.jsx'
-import PriceAlerts      from './components/PriceAlerts.jsx'
-import PreMarketTab     from './components/PreMarketTab.jsx'
-import FlowScannerTab   from './components/FlowScannerTab.jsx'
-import IntradayScanner  from './components/IntradayScanner.jsx'
-import TradingTab       from './components/TradingTab.jsx'
-import TradeJournal     from './components/TradeJournal.jsx'
-import StrategyBuilder      from './components/StrategyBuilder.jsx'
-import NewsImpactScanner    from './components/NewsImpactScanner.jsx'
-import InstitutionalTracker from './components/InstitutionalTracker.jsx'
-import InstitutionalFlowTracker from './components/InstitutionalFlowTracker.jsx'
-import EarningsFlowScanner  from './components/EarningsFlowScanner.jsx'
-import ATHCatalystScanner  from './components/ATHCatalystScanner.jsx'
-import AlertsTab           from './components/AlertsTab.jsx'
-import ReplayChart         from './components/ReplayChart.jsx'
-import EconomicCalendar    from './components/EconomicCalendar.jsx'
-import PositionSizer      from './components/PositionSizer.jsx'
-import CryptoHub          from './components/CryptoHub.jsx'
+import Dashboard   from './components/Dashboard.jsx'
+import PriceAlerts from './components/PriceAlerts.jsx'
+
+const Analyzer                = lazy(() => import('./components/Analyzer.jsx'))
+const Compare                 = lazy(() => import('./components/Compare.jsx'))
+const Tracker                 = lazy(() => import('./components/Tracker.jsx'))
+const ExportTab               = lazy(() => import('./components/ExportTab.jsx'))
+const ScannerTab              = lazy(() => import('./components/ScannerTab.jsx'))
+const PreMarketTab            = lazy(() => import('./components/PreMarketTab.jsx'))
+const FlowScannerTab          = lazy(() => import('./components/FlowScannerTab.jsx'))
+const IntradayScanner         = lazy(() => import('./components/IntradayScanner.jsx'))
+const TradingTab              = lazy(() => import('./components/TradingTab.jsx'))
+const TradeJournal            = lazy(() => import('./components/TradeJournal.jsx'))
+const StrategyBuilder         = lazy(() => import('./components/StrategyBuilder.jsx'))
+const NewsImpactScanner       = lazy(() => import('./components/NewsImpactScanner.jsx'))
+const InstitutionalTracker    = lazy(() => import('./components/InstitutionalTracker.jsx'))
+const InstitutionalFlowTracker = lazy(() => import('./components/InstitutionalFlowTracker.jsx'))
+const EarningsFlowScanner     = lazy(() => import('./components/EarningsFlowScanner.jsx'))
+const ATHCatalystScanner      = lazy(() => import('./components/ATHCatalystScanner.jsx'))
+const AlertsTab               = lazy(() => import('./components/AlertsTab.jsx'))
+const ReplayChart             = lazy(() => import('./components/ReplayChart.jsx'))
+const EconomicCalendar        = lazy(() => import('./components/EconomicCalendar.jsx'))
+const PositionSizer           = lazy(() => import('./components/PositionSizer.jsx'))
+const CryptoHub               = lazy(() => import('./components/CryptoHub.jsx'))
 
 import { getQuotes, getDayGainers, getDayLosers } from './api/yahooFinance.js'
 import { nowLabel } from './utils/helpers.js'
@@ -329,6 +330,7 @@ export default function App() {
       </nav>
 
       <main style={{ flex: 1, overflow: 'auto', padding: '12px 14px' }}>
+        <Suspense fallback={<div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' }}>Loading...</div>}>
         {activeTab === 'dashboard' && (
           <Dashboard
             marketData={marketData}
@@ -403,6 +405,7 @@ export default function App() {
         {activeTab === 'export' && (
           <ExportTab initialPlan={exportPlan} />
         )}
+        </Suspense>
       </main>
     </div>
   )
