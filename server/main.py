@@ -967,6 +967,36 @@ async def earnings_flow_scan(days_ahead: int = 21, limit: int = 60):
 _ath_cache: dict = {}
 _ATH_TTL = 900  # 15 minutes
 
+def _ath_db_load(min_score: int):
+    import json, time as _time
+    try:
+        conn = get_db()
+        row  = conn.execute(
+            "SELECT result_json, cached_at FROM earnings_cache WHERE symbol=?",
+            (f'__ath_{min_score}',)
+        ).fetchone()
+        conn.close()
+        if row and row['result_json']:
+            ts = __import__('pandas').Timestamp(row['cached_at']).timestamp()
+            if _time.time() - ts < _ATH_TTL:
+                return json.loads(row['result_json']), ts
+    except Exception:
+        pass
+    return None
+
+def _ath_db_save(min_score: int, result):
+    import json
+    try:
+        conn = get_db()
+        conn.execute(
+            "INSERT OR REPLACE INTO earnings_cache(symbol, result_json, cached_at) VALUES(?,?,datetime('now'))",
+            (f'__ath_{min_score}', json.dumps(result))
+        )
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
 @app.get("/api/scan/ath-catalyst")
 async def ath_catalyst_scan(min_score: int = 2):
     """Scan for stocks near ATH with upcoming earnings, volume surges, and analyst upside."""
@@ -976,8 +1006,15 @@ async def ath_catalyst_scan(min_score: int = 2):
         result, ts = cached
         if time.time() - ts < _ATH_TTL:
             return result
+    # SQLite cache survives restarts
+    db_hit = _ath_db_load(min_score)
+    if db_hit:
+        result, ts = db_hit
+        _ath_cache[min_score] = (result, ts)
+        return result
     result = await asyncio.to_thread(scan_ath_catalysts, min_score)
     _ath_cache[min_score] = (result, time.time())
+    _ath_db_save(min_score, result)
     return result
 
 

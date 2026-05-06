@@ -41,27 +41,20 @@ SECTOR_ETFS = [
 UNIVERSE = [
     # Mega-cap tech
     'AAPL', 'MSFT', 'NVDA', 'GOOGL', 'META', 'AMZN', 'TSLA', 'AMD', 'AVGO', 'QCOM',
-    'INTC', 'ORCL', 'CRM', 'ADBE', 'NOW', 'IBM',
     # AI / Semiconductors
-    'MU', 'AMAT', 'LRCX', 'KLAC', 'ON', 'MRVL', 'SMCI', 'ARM', 'ASML', 'TSM',
-    'SNDK', 'WDC', 'STX', 'SWKS', 'QRVO', 'TXN', 'ADI', 'MCHP',
+    'MU', 'AMAT', 'LRCX', 'MRVL', 'SMCI', 'ARM', 'ASML', 'TSM', 'TXN', 'ADI',
     # Cloud / SaaS
-    'SNOW', 'DDOG', 'PLTR', 'NET', 'CRWD', 'PANW', 'MDB', 'HUBS', 'VEEV', 'WDAY',
-    'ZM', 'TEAM', 'OKTA', 'ZS', 'BILL', 'GTLB', 'PATH', 'AI', 'CFLT',
+    'SNOW', 'DDOG', 'PLTR', 'NET', 'CRWD', 'PANW', 'MDB', 'WDAY', 'ZS', 'TEAM',
     # Finance / Fintech
-    'JPM', 'BAC', 'GS', 'MS', 'V', 'MA', 'AXP', 'PYPL', 'SQ', 'COIN', 'HOOD',
-    'SOFI', 'AFRM', 'C', 'WFC', 'BLK', 'SCHW',
+    'JPM', 'GS', 'V', 'MA', 'COIN', 'BLK',
     # Healthcare / Biotech
-    'LLY', 'UNH', 'ABBV', 'MRNA', 'ISRG', 'AMGN', 'GILD', 'REGN', 'PFE', 'JNJ',
-    'BIIB', 'VRTX', 'BMY',
+    'LLY', 'UNH', 'ABBV', 'MRNA', 'ISRG', 'VRTX',
     # Consumer / Streaming
-    'NFLX', 'SPOT', 'ROKU', 'UBER', 'DASH', 'ABNB', 'SHOP', 'ETSY', 'MELI',
-    'WMT', 'COST', 'TGT', 'HD', 'NKE', 'SBUX', 'MCD',
+    'NFLX', 'UBER', 'SHOP', 'WMT', 'COST', 'HD',
     # Energy
-    'XOM', 'CVX', 'COP', 'OXY', 'SLB',
-    # Misc Growth
-    'MSTR', 'RBLX', 'APP', 'TTD', 'PINS', 'SNAP', 'SE', 'NU', 'TOST', 'DUOL',
-    'RIVN', 'NIO', 'XPEV',
+    'XOM', 'OXY',
+    # Growth
+    'MSTR', 'APP', 'TTD', 'DUOL', 'HOOD', 'RBLX',
 ]
 UNIVERSE = list(dict.fromkeys(UNIVERSE))  # deduplicate
 
@@ -273,12 +266,15 @@ def get_stock_catalyst(symbol: str) -> dict:
 
 def scan_ath_catalysts(min_score: int = 2) -> dict:
     results = []
-    with ThreadPoolExecutor(max_workers=5) as pool:
+    with ThreadPoolExecutor(max_workers=10) as pool:
         futures = {pool.submit(_analyze_stock, s): s for s in UNIVERSE}
-        for fut in as_completed(futures, timeout=180):
-            r = fut.result()
-            if r and r['proScore'] >= min_score:
-                results.append(r)
+        for fut in as_completed(futures, timeout=90):
+            try:
+                r = fut.result(timeout=10)
+                if r and r['proScore'] >= min_score:
+                    results.append(r)
+            except Exception:
+                pass
 
     results.sort(key=lambda x: (-x['proScore'], -(x['volRatio'] or 1)))
     return {
