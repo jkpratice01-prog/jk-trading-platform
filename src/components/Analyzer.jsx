@@ -5,9 +5,10 @@ import VWAPPanel        from './VWAPPanel.jsx'
 import CandlestickChart from './CandlestickChart.jsx'
 import MultiTimeframe   from './MultiTimeframe.jsx'
 import PivotLevels      from './PivotLevels.jsx'
-import AnalyzerInsights  from './AnalyzerInsights.jsx'
-import EarningsHistory   from './EarningsHistory.jsx'
-import OptionsDetail     from './OptionsDetail.jsx'
+import AnalyzerInsights    from './AnalyzerInsights.jsx'
+import EarningsHistory     from './EarningsHistory.jsx'
+import OptionsDetail       from './OptionsDetail.jsx'
+import StockCatalystPanel  from './StockCatalystPanel.jsx'
 
 export default function Analyzer({ initialTicker, onExport }) {
   const [ticker,   setTicker]   = useState(initialTicker || 'AAPL')
@@ -110,6 +111,9 @@ export default function Analyzer({ initialTicker, onExport }) {
           </div>
         </div>
       )}
+
+      {/* ── Catalyst score ─────────────────────────────── */}
+      {ticker && <StockCatalystPanel symbol={ticker} />}
 
       {/* ── Insights panels ────────────────────────────── */}
       {ticker && <AnalyzerInsights symbol={ticker} quote={quote} />}

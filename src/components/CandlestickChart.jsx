@@ -95,6 +95,37 @@ function calcRSI(closes, period = 14) {
   return rsi
 }
 
+function calcVWAP(highs, lows, closes, volumes, timestamps) {
+  const result = []
+  let cumTypVol = 0, cumVol = 0, prevDay = null
+  for (let i = 0; i < closes.length; i++) {
+    const t   = timestamps[i]
+    const day = typeof t === 'string' ? t : new Date(t * 1000).toDateString()
+    if (day !== prevDay) { cumTypVol = 0; cumVol = 0; prevDay = day }
+    const vol = volumes[i] || 0
+    cumTypVol += ((highs[i] + lows[i] + closes[i]) / 3) * vol
+    cumVol    += vol
+    result.push(cumVol > 0 ? cumTypVol / cumVol : closes[i])
+  }
+  return result
+}
+
+function calcMACD(closes) {
+  const line12 = calcEMA(closes, 12)
+  const line26 = calcEMA(closes, 26)
+  const macdLine = closes.map((_, i) =>
+    line12[i] == null || line26[i] == null ? null : line12[i] - line26[i]
+  )
+  const startIdx  = macdLine.findIndex(v => v != null)
+  const validMACD = macdLine.slice(startIdx)
+  const signalArr = calcEMA(validMACD, 9)
+  const signal    = [...new Array(startIdx).fill(null), ...signalArr]
+  const hist      = closes.map((_, i) =>
+    macdLine[i] == null || signal[i] == null ? null : macdLine[i] - signal[i]
+  )
+  return { macdLine, signal, hist }
+}
+
 // ── FVG detection (Fair Value Gap) ───────────────────────────────────────────
 // A 3-candle gap: candle[i-1].high < candle[i+1].low (bullish)
 //                 candle[i-1].low  > candle[i+1].high (bearish)
@@ -197,11 +228,16 @@ export default function CandlestickChart({ symbol, height = 420 }) {
   const [ind, setInd] = useState({
     sma50: true, sma200: true,
     ema9: false, ema21: false,
-    bb: false, rsi: false,
+    bb: false, rsi: false, macd: false,
     pivots: false, swings: false, prevDay: true,
-    fvg: false, doji: false,
+    fvg: false, doji: false, vwap: false,
   })
-  const toggleInd = key => setInd(prev => ({ ...prev, [key]: !prev[key] }))
+  const toggleInd = key => setInd(prev => {
+    const next = { ...prev, [key]: !prev[key] }
+    if (key === 'rsi'  && next.rsi)  next.macd = false
+    if (key === 'macd' && next.macd) next.rsi  = false
+    return next
+  })
 
   const [refreshTick, setRefreshTick] = useState(0)
   const [countdown,   setCountdown]   = useState(0)
@@ -316,7 +352,28 @@ export default function CandlestickChart({ symbol, height = 420 }) {
     rsi.createPriceLine({ price: 30, color: '#22c55e', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false })
     rsi.createPriceLine({ price: 50, color: '#6b7280', lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: false })
 
-    seriesRef.current = { candle, vol, ema9, ema21, sma50, sma200, bbUpper, bbMid, bbLower, rsi }
+    // VWAP overlay
+    const vwap = chart.addSeries(LineSeries, {
+      color: '#22d3ee', lineWidth: 2, lineStyle: LineStyle.Dashed,
+      title: 'VWAP', visible: false, priceLineVisible: false, lastValueVisible: true,
+    })
+
+    // MACD pane (mutually exclusive with RSI — same bottom slot)
+    const macdLine = chart.addSeries(LineSeries, {
+      priceScaleId: 'macd', color: '#3b82f6', lineWidth: 1.5,
+      title: 'MACD', visible: false, priceLineVisible: false, lastValueVisible: true,
+    })
+    const macdSignal = chart.addSeries(LineSeries, {
+      priceScaleId: 'macd', color: '#f97316', lineWidth: 1,
+      title: 'Signal', visible: false, priceLineVisible: false, lastValueVisible: true,
+    })
+    const macdHist = chart.addSeries(HistogramSeries, {
+      priceScaleId: 'macd', visible: false, priceLineVisible: false,
+    })
+    chart.priceScale('macd').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 }, borderVisible: false })
+    macdLine.createPriceLine({ price: 0, color: '#6b7280', lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: false })
+
+    seriesRef.current = { candle, vol, ema9, ema21, sma50, sma200, bbUpper, bbMid, bbLower, rsi, vwap, macdLine, macdSignal, macdHist }
     chartRef.current  = chart
 
     const ro = new ResizeObserver(e => chart.applyOptions({ width: e[0].contentRect.width }))
@@ -385,6 +442,21 @@ export default function CandlestickChart({ symbol, height = 420 }) {
         // RSI
         s.rsi.setData(toSeries2(ts, calcRSI(closes)))
 
+        // VWAP
+        s.vwap.setData(toSeries2(ts, calcVWAP(highs, lows, closes, vols, ts)))
+
+        // MACD
+        const macdResult = calcMACD(closes)
+        s.macdLine.setData(toSeries2(ts, macdResult.macdLine))
+        s.macdSignal.setData(toSeries2(ts, macdResult.signal))
+        s.macdHist.setData(
+          ts.map((t, i) => macdResult.hist[i] == null ? null : {
+            time:  mkTime(t),
+            value: macdResult.hist[i],
+            color: macdResult.hist[i] >= 0 ? '#22c55e55' : '#ef444455',
+          }).filter(Boolean)
+        )
+
         // For daily, fit all history. For intraday, default to ~1 session
         // so the x-axis shows time labels (HH:MM) rather than date labels.
         const intraDayWindow = {
@@ -409,21 +481,26 @@ export default function CandlestickChart({ symbol, height = 420 }) {
   useEffect(() => {
     const s = seriesRef.current
     if (!s.candle) return
-    s.ema9.applyOptions({   visible: ind.ema9   })
-    s.ema21.applyOptions({  visible: ind.ema21  })
-    s.sma50.applyOptions({  visible: ind.sma50  })
-    s.sma200.applyOptions({ visible: ind.sma200 })
-    s.bbUpper.applyOptions({ visible: ind.bb })
-    s.bbMid.applyOptions({   visible: ind.bb })
-    s.bbLower.applyOptions({ visible: ind.bb })
-    s.rsi.applyOptions({     visible: ind.rsi   })
+    s.ema9.applyOptions({        visible: ind.ema9   })
+    s.ema21.applyOptions({       visible: ind.ema21  })
+    s.sma50.applyOptions({       visible: ind.sma50  })
+    s.sma200.applyOptions({      visible: ind.sma200 })
+    s.bbUpper.applyOptions({     visible: ind.bb     })
+    s.bbMid.applyOptions({       visible: ind.bb     })
+    s.bbLower.applyOptions({     visible: ind.bb     })
+    s.rsi.applyOptions({         visible: ind.rsi    })
+    s.vwap.applyOptions({        visible: ind.vwap   })
+    s.macdLine.applyOptions({    visible: ind.macd   })
+    s.macdSignal.applyOptions({  visible: ind.macd   })
+    s.macdHist.applyOptions({    visible: ind.macd   })
 
-    // Adjust price scale margins when RSI visible
+    // Adjust price scale margins — bottom pane active when RSI or MACD shown
+    const bottomPane = ind.rsi || ind.macd
     chartRef.current?.priceScale('right').applyOptions({
-      scaleMargins: { top: 0.04, bottom: ind.rsi ? 0.30 : 0.12 },
+      scaleMargins: { top: 0.04, bottom: bottomPane ? 0.30 : 0.12 },
     })
     chartRef.current?.priceScale('vol').applyOptions({
-      scaleMargins: { top: ind.rsi ? 0.68 : 0.78, bottom: ind.rsi ? 0.22 : 0.02 },
+      scaleMargins: { top: bottomPane ? 0.68 : 0.78, bottom: bottomPane ? 0.22 : 0.02 },
     })
   }, [ind])
 
@@ -571,6 +648,8 @@ export default function CandlestickChart({ symbol, height = 420 }) {
         <IndBtn label="SMA200" active={ind.sma200} color="#a855f7" onClick={() => toggleInd('sma200')} />
         <IndBtn label="BB"     active={ind.bb}     color="#94a3b8" onClick={() => toggleInd('bb')}     />
         <IndBtn label="RSI"    active={ind.rsi}    color="#c084fc" onClick={() => toggleInd('rsi')}    />
+        <IndBtn label="MACD"   active={ind.macd}   color="#3b82f6" onClick={() => toggleInd('macd')}   />
+        <IndBtn label="VWAP"   active={ind.vwap}   color="#22d3ee" onClick={() => toggleInd('vwap')}   />
 
         <div style={{ width: 1, height: 14, background: 'var(--border-subtle)', margin: '0 2px' }} />
 
@@ -761,8 +840,10 @@ export default function CandlestickChart({ symbol, height = 420 }) {
           { abbr: 'PDH / PDL', color: '#f87171', desc: 'Previous Day High / Low — key intraday reference; breakouts watched closely' },
           { abbr: 'PDC', color: '#94a3b8', desc: 'Previous Day Close — gap-up/gap-down reference for morning traders' },
           { abbr: 'SwH / SwL', color: '#f97316', desc: 'Swing High / Low — recent price-action extremes; act as S/R zones' },
-          { abbr: 'FVG ▲▼',   color: '#a855f7', desc: 'Fair Value Gap — 3-candle price gap; unfilled gaps act as support/resistance; price tends to return to fill them → options entry zone' },
-          { abbr: 'Doji 🐉🪦', color: '#fbbf24', desc: 'Doji candle — open ≈ close (tiny body = indecision). Dragonfly 🐉 = bullish reversal (CALLS). Gravestone 🪦 = bearish reversal (PUTS). Long-leg ✚ = straddle' },
+          { abbr: 'VWAP',       color: '#22d3ee', desc: 'Volume-Weighted Average Price — resets each day; price above VWAP = bullish bias; most-watched intraday level by institutions' },
+          { abbr: 'MACD',       color: '#3b82f6', desc: 'MACD(12,26,9) — blue = MACD line, orange = signal, histogram = momentum. Bullish when MACD crosses above signal; bearish below.' },
+          { abbr: 'FVG ▲▼',    color: '#a855f7', desc: 'Fair Value Gap — 3-candle price gap; unfilled gaps act as support/resistance; price tends to return to fill them → options entry zone' },
+          { abbr: 'Doji 🐉🪦',  color: '#fbbf24', desc: 'Doji candle — open ≈ close (tiny body = indecision). Dragonfly 🐉 = bullish reversal (CALLS). Gravestone 🪦 = bearish reversal (PUTS). Long-leg ✚ = straddle' },
         ].map(({ abbr, color, desc }) => (
           <div key={abbr} style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
             <span style={{ fontSize: 9, fontWeight: 700, color, whiteSpace: 'nowrap', minWidth: 64 }}>{abbr}</span>

@@ -1,0 +1,7 @@
+ Terminal 1 — Backend:
+  cd /Users/janardhankarnati/IdeaProjects/jk-trading-platform
+  server/venv/bin/python -m uvicorn server.main:app --reload --port 8000
+
+  Terminal 2 — Frontend:
+  cd /Users/janardhankarnati/IdeaProjects/jk-trading-platform
+  npm run dev
