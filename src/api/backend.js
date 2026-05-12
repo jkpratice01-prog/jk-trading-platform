@@ -259,6 +259,16 @@ export async function backendSectorMomentum() {
   return apiFetch('/api/scan/sector-momentum', { _timeout: 30000 })
 }
 
+export async function backendLowFloatMomentum() {
+  return apiFetch('/api/scan/low-float-momentum', { _timeout: 120000 })
+}
+
+// ── Options Decoder ───────────────────────────────────────────────────────────
+export async function backendOptionsDecoder({ symbol, strike, optType, expiry }) {
+  const p = new URLSearchParams({ symbol, strike, opt_type: optType, expiry })
+  return apiFetch(`/api/options/decode?${p}`, { _timeout: 30000 })
+}
+
 // ── Institutional holders ─────────────────────────────────────────────────────
 export async function backendInstitutionalHolders(symbol) {
   return apiFetch(`/api/institutions/${symbol}/holders`)

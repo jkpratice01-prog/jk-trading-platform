@@ -41,22 +41,75 @@ SECTOR_ETFS = [
 UNIVERSE = [
     # Mega-cap tech
     'AAPL', 'MSFT', 'NVDA', 'GOOGL', 'META', 'AMZN', 'TSLA', 'AMD', 'AVGO', 'QCOM',
-    # AI / Semiconductors
+    # AI / Semiconductors (large-cap)
     'MU', 'AMAT', 'LRCX', 'MRVL', 'SMCI', 'ARM', 'ASML', 'TSM', 'TXN', 'ADI',
-    # Cloud / SaaS
+    # Mid-cap Semiconductors
+    'MPWR', 'ONTO', 'ACLS', 'ALGM', 'SITM', 'FORM', 'WOLF', 'AMBA',
+    # Cloud / SaaS (large-cap)
     'SNOW', 'DDOG', 'PLTR', 'NET', 'CRWD', 'PANW', 'MDB', 'WDAY', 'ZS', 'TEAM',
+    # Enterprise Cloud / AI Platform
+    'NOW', 'CRM', 'ORCL', 'FTNT', 'S', 'HUBS',
     # Finance / Fintech
-    'JPM', 'GS', 'V', 'MA', 'COIN', 'BLK',
+    'JPM', 'GS', 'V', 'MA', 'COIN', 'BLK', 'SOFI', 'NU',
     # Healthcare / Biotech
-    'LLY', 'UNH', 'ABBV', 'MRNA', 'ISRG', 'VRTX',
+    'LLY', 'UNH', 'ABBV', 'MRNA', 'ISRG', 'VRTX', 'HIMS', 'RXRX', 'ROIV',
     # Consumer / Streaming
-    'NFLX', 'UBER', 'SHOP', 'WMT', 'COST', 'HD',
+    'NFLX', 'UBER', 'SHOP', 'WMT', 'COST', 'HD', 'ABNB', 'DASH', 'SPOT',
     # Energy
-    'XOM', 'OXY',
-    # Growth
-    'MSTR', 'APP', 'TTD', 'DUOL', 'HOOD', 'RBLX',
+    'XOM', 'OXY', 'CVX', 'SLB',
+    # High-growth Momentum
+    'MSTR', 'APP', 'TTD', 'DUOL', 'HOOD', 'RBLX', 'AXON', 'CELH', 'CAVA',
+    # Small-cap Momentum — low float, high beta, catalyst-driven (MRAM pattern)
+    # These move 20-100%+ in a day on news + thin float; floatRatio is the key signal
+    'SOUN', 'BBAI', 'IONQ', 'ASTS', 'RGTI', 'QUBT', 'KULR', 'NVTS', 'AEHR',
 ]
 UNIVERSE = list(dict.fromkeys(UNIVERSE))  # deduplicate
+
+# ── Low Float Momentum Universe ───────────────────────────────────────────────
+# Small-cap / micro-cap stocks with thin floats that move 20–100%+ on catalysts.
+# Key signal: floatRatio (today's volume as % of float). >5% = unusual; >50% = MRAM-type.
+LOW_FLOAT_UNIVERSE = [
+    # Small-cap Semiconductors (the MRAM archetype)
+    'MRAM', 'AEHR', 'NVTS', 'SITM', 'ALGM', 'FORM', 'ACLS', 'AMBA', 'WOLF',
+    'DIOD', 'POWI', 'CRUS', 'SLAB', 'ONTO',
+    # Extended small-cap semis — similar DNA to MRAM
+    'NVEC',   # NVE Corp — spintronics (closest science to MRAM, tiny float ~7M)
+    'COHU',   # Cohu — semiconductor test equipment
+    'ICHR',   # Ichor Holdings — semiconductor fluid components
+    'SMTC',   # Semtech — IoT/LoRa chips
+    'LSCC',   # Lattice Semiconductor — FPGAs
+    'CRDO',   # Credo Technology — high-speed connectivity
+    'CAMT',   # Camtek — semiconductor inspection
+    'KLIC',   # Kulicke & Soffa — advanced packaging
+    # Small-cap AI / Quantum Computing
+    'SOUN', 'BBAI', 'IONQ', 'RGTI', 'QUBT', 'KULR', 'ASTS',
+    # Small-cap AI / Enterprise Software
+    'AI',     # C3.ai — enterprise AI, volatile small-cap
+    'CLBT',   # Cellebrite — digital intelligence
+    # LiDAR / Autonomy — thin float, catalyst-driven
+    'MVIS',   # MicroVision — LiDAR, float ~100M, moves violently on news
+    'LAZR',   # Luminar Technologies — autonomous driving sensors
+    'INVZ',   # Innoviz Technologies — automotive LiDAR
+    # eVTOL / Space — thin float, speculative beta
+    'JOBY',   # Joby Aviation — eVTOL air taxi
+    'ACHR',   # Archer Aviation — eVTOL
+    'RKLB',   # Rocket Lab — small-cap space launch
+    'PL',     # Planet Labs — satellite imagery
+    # Small-cap Biotech / Healthcare
+    'RXRX', 'HIMS', 'ROIV', 'VKTX', 'MDGL',
+    'NVAX',   # Novavax — volatile vaccine biotech
+    'IMVT',   # Immunovant — autoimmune
+    'NKTR',   # Nektar Therapeutics — drug delivery
+    # EV / Clean Energy — thin float, sentiment-driven
+    'CHPT',   # ChargePoint — EV charging infrastructure
+    'BLNK',   # Blink Charging — EV charging, very thin float
+    'NKLA',   # Nikola — hydrogen/EV, high beta
+    # Small-cap Fintech / Growth
+    'SOFI', 'HOOD', 'UPST', 'AFRM',
+    # High-beta consumer / growth
+    'CELH', 'CAVA', 'RDDT', 'DUOL',
+]
+LOW_FLOAT_UNIVERSE = list(dict.fromkeys(LOW_FLOAT_UNIVERSE))
 
 
 def _nearest_earnings(ticker) -> tuple | None:
@@ -92,7 +145,7 @@ def _analyze_stock(symbol: str) -> dict | None:
         except Exception:
             return None
 
-        if not price or not year_high or price < 5 or avg_vol < 200_000:
+        if not price or not year_high or price < 2 or avg_vol < 50_000:
             return None
 
         # Criterion 1: Near ATH
@@ -122,14 +175,20 @@ def _analyze_stock(symbol: str) -> dict | None:
         industry = ''
         analyst_target = None
         short_name = symbol
+        float_shares = None
         try:
             info = t.info
-            sector   = (info.get('sector')    or '').lower()
-            industry = (info.get('industry')  or '').lower()
+            sector        = (info.get('sector')    or '').lower()
+            industry      = (info.get('industry')  or '').lower()
             analyst_target = info.get('targetMeanPrice')
-            short_name = info.get('shortName') or symbol
+            short_name    = info.get('shortName') or symbol
+            float_shares  = info.get('floatShares') or info.get('impliedSharesOutstanding')
         except Exception:
             pass
+
+        # Float ratio: today's volume as % of float — the key MRAM-type signal.
+        # >10% = unusually high; >50% = short-squeeze / news-driven explosion.
+        float_ratio = round(today_vol / float_shares, 3) if float_shares and float_shares > 0 else None
 
         hot_sector = (
             sector in HOT_SECTORS or
@@ -222,6 +281,9 @@ def _analyze_stock(symbol: str) -> dict | None:
             'analystUpside':    analyst_upside,
             'upsidePct':        round(float(upside_pct), 1) if upside_pct is not None else None,
             'marketCap':        fmt_mcap(market_cap),
+            'marketCapRaw':     market_cap,
+            'floatShares':      float_shares,
+            'floatRatio':       float_ratio,
             'proScore':         pro_score,
             'criteria': {
                 'nearATH':          near_ath,
@@ -318,5 +380,123 @@ def get_sector_momentum() -> dict:
     results.sort(key=lambda x: x['change5d'], reverse=True)
     return {
         'sectors':   results,
+        'scannedAt': datetime.utcnow().isoformat(),
+    }
+
+
+# ── Low Float Momentum Scanner ────────────────────────────────────────────────
+
+def _analyze_low_float(symbol: str) -> dict | None:
+    """Score a stock on low-float momentum criteria (MRAM pattern)."""
+    try:
+        t = yf_ticker(symbol)
+
+        try:
+            fi = t.fast_info
+            price      = fi.last_price
+            year_high  = fi.year_high
+            avg_vol    = fi.three_month_average_volume or 0
+            today_vol  = fi.last_volume or 0
+            prev_close = fi.previous_close or price
+            market_cap = fi.market_cap or 0
+        except Exception:
+            return None
+
+        if not price or not year_high or price < 0.5:
+            return None
+
+        ath_pct          = (price / year_high) * 100
+        vol_ratio        = today_vol / avg_vol if avg_vol > 0 else 1.0
+        today_change_pct = round((price - prev_close) / prev_close * 100, 2) if prev_close else 0.0
+
+        float_shares = None
+        sector       = ''
+        industry     = ''
+        short_name   = symbol
+        try:
+            info         = t.info
+            float_shares = info.get('floatShares') or info.get('impliedSharesOutstanding')
+            sector       = (info.get('sector')   or '').lower()
+            industry     = (info.get('industry') or '').lower()
+            short_name   = info.get('shortName') or symbol
+        except Exception:
+            pass
+
+        float_ratio = (today_vol / float_shares) if float_shares and float_shares > 0 else None
+
+        # Scoring criteria — each worth 1 point
+        low_float    = bool(float_shares) and float_shares < 100_000_000   # < 100M float
+        float_surge  = float_ratio is not None and float_ratio >= 0.05      # > 5% of float traded
+        vol_surge    = vol_ratio >= 2.0                                      # > 2× avg volume
+        near_high    = ath_pct >= 80.0                                       # within 20% of 52-wk high
+        momentum_day = today_change_pct >= 3.0                               # up 3%+ today
+
+        score = sum([low_float, float_surge, vol_surge, near_high, momentum_day])
+        if score < 2:
+            return None
+
+        def fmt_float(v):
+            if not v: return '—'
+            if v >= 1e9: return f'{v/1e9:.1f}B'
+            if v >= 1e6: return f'{v/1e6:.0f}M'
+            return f'{int(v/1e3)}K'
+
+        def fmt_mcap(v):
+            if not v: return '—'
+            if v >= 1e12: return f'${v/1e12:.1f}T'
+            if v >= 1e9:  return f'${v/1e9:.1f}B'
+            return f'${v/1e6:.0f}M'
+
+        return {
+            'symbol':         symbol,
+            'shortName':      short_name,
+            'price':          round(float(price), 2),
+            'yearHigh':       round(float(year_high), 2),
+            'athPct':         round(float(ath_pct), 1),
+            'distFromHigh':   round(100.0 - float(ath_pct), 1),
+            'nearHigh':       near_high,
+            'volRatio':       round(float(vol_ratio), 2),
+            'volSurge':       vol_surge,
+            'todayChangePct': today_change_pct,
+            'momentumDay':    momentum_day,
+            'floatShares':    float_shares,
+            'floatFmt':       fmt_float(float_shares),
+            'floatRatio':     round(float(float_ratio), 4) if float_ratio is not None else None,
+            'floatRatioPct':  round(float(float_ratio) * 100, 1) if float_ratio is not None else None,
+            'lowFloat':       low_float,
+            'floatSurge':     float_surge,
+            'marketCap':      fmt_mcap(market_cap),
+            'marketCapRaw':   market_cap,
+            'sector':         sector.title() if sector else 'Unknown',
+            'industry':       industry.title() if industry else '',
+            'score':          score,
+            'criteria': {
+                'lowFloat':    low_float,
+                'floatSurge':  float_surge,
+                'volSurge':    vol_surge,
+                'nearHigh':    near_high,
+                'momentumDay': momentum_day,
+            },
+        }
+    except Exception:
+        return None
+
+
+def scan_low_float_momentum() -> dict:
+    results = []
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        futures = {pool.submit(_analyze_low_float, s): s for s in LOW_FLOAT_UNIVERSE}
+        for fut in as_completed(futures, timeout=90):
+            try:
+                r = fut.result(timeout=10)
+                if r:
+                    results.append(r)
+            except Exception:
+                pass
+
+    results.sort(key=lambda x: (-x['score'], -(x['floatRatio'] or 0)))
+    return {
+        'results':   results,
+        'count':     len(results),
         'scannedAt': datetime.utcnow().isoformat(),
     }

@@ -188,6 +188,9 @@ function DetailPanel({ row, onAnalyze, onClose }) {
             tip: 'Wall Street consensus price target (average of all analyst estimates).' },
           { label: 'Analyst Upside',     value: row.upsidePct != null ? `+${row.upsidePct?.toFixed(1)}%` : '—', color: row.analystUpside ? 'var(--green-text)' : undefined,
             tip: 'How much upside analysts see from current price. >10% = bullish conviction.' },
+          { label: 'Float Ratio',        value: row.floatRatio != null ? `${(row.floatRatio * 100).toFixed(1)}% of float` : '—',
+            color: row.floatRatio >= 0.5 ? 'var(--red-text)' : row.floatRatio >= 0.1 ? 'var(--amber-text)' : undefined,
+            tip: "Today's volume as % of float shares. >10% = unusually high. >50% = MRAM-type explosion — thin float + catalyst = violent move." },
         ].map(({ label, value, color, tip }) => (
           <div key={label} title={tip} style={{ padding: '8px 12px', background: 'var(--bg-tertiary)', borderRadius: 6, border: '0.5px solid var(--border-subtle)', cursor: tip ? 'help' : undefined }}>
             <div style={{ fontSize: 9, color: 'var(--text-tertiary)', marginBottom: 3 }}>{label}</div>
@@ -284,7 +287,7 @@ export default function ATHCatalystScanner({ onAnalyze }) {
 
   useEffect(() => { runScan() }, [])
 
-  const sectors = [...new Set((scanData?.results || []).map(r => r.sector))].sort()
+  const sectors = [...new Set((scanData?.results || []).map(r => r.sector).filter(Boolean))].sort()
 
   const results = (scanData?.results || [])
     .filter(r => sectorFilter === 'ALL' || r.sector === sectorFilter)
@@ -344,7 +347,7 @@ export default function ATHCatalystScanner({ onAnalyze }) {
             onChange={e => setSectorFilter(e.target.value)}
             style={{ fontSize: 11, padding: '5px 8px', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '0.5px solid var(--border-subtle)', borderRadius: 4 }}
           >
-            <option value="ALL">All sectors</option>
+            <option value="ALL">All Sectors</option>
             {sectors.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
 

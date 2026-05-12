@@ -1,6 +1,7 @@
 """Options chains via yfinance, with Black-Scholes delta, SQLite cache."""
 import math
 from datetime import datetime, timedelta, date
+import pandas as pd
 import yfinance as yf
 from server.db import get_db
 
@@ -51,6 +52,200 @@ def _bs_gamma(S: float, K: float, T: float, r: float, sigma: float) -> float:
         return npd1 / (S * sigma * math.sqrt(T))
     except Exception:
         return 0.0
+
+
+def _bs_vega(S: float, K: float, T: float, r: float, sigma: float) -> float:
+    """Vega: option price change per +1% IV move, per share."""
+    if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
+        return 0.0
+    try:
+        d1 = (math.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
+        npd1 = math.exp(-d1**2 / 2) / math.sqrt(2 * math.pi)
+        return round(S * npd1 * math.sqrt(T) / 100, 5)
+    except Exception:
+        return 0.0
+
+
+def _bs_price(S: float, K: float, T: float, r: float, sigma: float, opt_type: str) -> float:
+    """Black-Scholes theoretical price per share."""
+    if S <= 0 or K <= 0 or sigma <= 0 or T <= 0:
+        return max(0.0, (S - K) if opt_type == 'call' else (K - S))
+    try:
+        d1 = (math.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
+        d2 = d1 - sigma * math.sqrt(T)
+        if opt_type == 'call':
+            price = S * _norm_cdf(d1) - K * math.exp(-r * T) * _norm_cdf(d2)
+        else:
+            price = K * math.exp(-r * T) * _norm_cdf(-d2) - S * _norm_cdf(-d1)
+        return max(0.0, round(price, 4))
+    except Exception:
+        return 0.0
+
+
+def _get_next_earnings(ticker, expiry_date: date) -> dict | None:
+    """
+    Return the next earnings date relative to today, with context about
+    whether it falls before or after the option's expiry.
+    """
+    try:
+        ed = ticker.earnings_dates
+        if ed is None or ed.empty:
+            return None
+        now = pd.Timestamp.now(tz='UTC')
+        # earnings_dates is sorted descending — grab all future dates
+        future = ed[ed.index.normalize() >= now.normalize()]
+        if future.empty:
+            return None
+        # Last entry in descending list = nearest upcoming date
+        dt = future.index[-1]
+        earnings_dt = dt.date()
+        days_away   = max(0, (earnings_dt - date.today()).days)
+        before_expiry = earnings_dt <= expiry_date
+
+        # Expected move: IV-derived 1-sigma move over the earnings window
+        # e_move = IV * sqrt(days_to_earnings / 365)
+        return {
+            'date':          earnings_dt.strftime('%Y-%m-%d'),
+            'daysAway':      days_away,
+            'beforeExpiry':  before_expiry,
+        }
+    except Exception:
+        return None
+
+
+def decode_contract(symbol: str, strike: float, opt_type: str, expiry_str: str) -> dict:
+    """
+    Full breakdown of a single options contract.
+    Returns current market values, all Greeks, and a price×time scenario matrix
+    so the user can see what the option is worth at any future price/date.
+    """
+    from datetime import date as date_cls
+
+    t = yf.Ticker(symbol)
+    try:
+        spot = float(t.fast_info.last_price)
+        if not spot or spot <= 0:
+            return {'error': f'Could not fetch price for {symbol}'}
+    except Exception:
+        return {'error': f'Could not fetch price for {symbol}'}
+
+    try:
+        expiry_dt = datetime.strptime(expiry_str, '%Y-%m-%d').date()
+    except ValueError:
+        return {'error': f'Invalid expiry: {expiry_str}'}
+
+    today     = date_cls.today()
+    days_left = max(0, (expiry_dt - today).days)
+    T         = days_left / 365.0
+    r         = 0.052  # approx risk-free rate
+
+    # Earnings — fetch before the options chain call (same ticker object)
+    earnings = _get_next_earnings(t, expiry_dt)
+
+    # Try to get real market IV, price, volume from the chain
+    iv = 0.25
+    market_price = None
+    volume = oi = 0
+    bid = ask = None
+
+    try:
+        chain = t.option_chain(expiry_str)
+        df = chain.calls if opt_type == 'call' else chain.puts
+        match = df[abs(df['strike'] - strike) < 0.01]
+        if not match.empty:
+            row = match.iloc[0]
+            raw_iv = row.get('impliedVolatility')
+            if raw_iv and float(raw_iv) > 0:
+                iv = float(raw_iv)
+            lp = row.get('lastPrice')
+            if lp and float(lp) > 0:
+                market_price = float(lp)
+            volume = int(row.get('volume') or 0)
+            oi     = int(row.get('openInterest') or 0)
+            b, a   = row.get('bid'), row.get('ask')
+            bid    = float(b) if b else None
+            ask    = float(a) if a else None
+    except Exception:
+        pass
+
+    bs_val  = _bs_price(spot, strike, T, r, iv, opt_type)
+    eff_prc = market_price if market_price else bs_val
+
+    delta = _bs_delta(spot, strike, T, r, iv, opt_type)
+    theta = _bs_theta(spot, strike, T, r, iv, opt_type)
+    gamma = _bs_gamma(spot, strike, T, r, iv)
+    vega  = _bs_vega(spot, strike, T, r, iv)
+
+    # Moneyness
+    if opt_type == 'call':
+        itm = spot > strike
+        pct_to_strike = (strike - spot) / spot * 100   # positive = needs to go up
+    else:
+        itm = spot < strike
+        pct_to_strike = (spot - strike) / spot * 100
+
+    moneyness = 'ATM' if abs(pct_to_strike) < 1 else ('ITM' if itm else 'OTM')
+    breakeven = (strike + eff_prc) if opt_type == 'call' else (strike - eff_prc)
+
+    # ── Scenario matrix ──────────────────────────────────────────────────────
+    # Columns: price range covering current spot and the strike
+    lo   = min(spot * 0.60, strike * 0.85)
+    hi   = max(spot * 1.60, strike * 1.15)
+    step = (hi - lo) / 10
+    raw  = [lo + i * step for i in range(12)]
+    spot_cols = sorted(set([round(p / 5) * 5 for p in raw] + [int(strike)]))
+
+    # Rows: time slices from now → expiry
+    fracs = ([1.0, 0.66, 0.33, 0.1, 0.0] if days_left > 30 else [1.0, 0.5, 0.1, 0.0])
+    seen, time_rows = set(), []
+    for frac in fracs:
+        d = max(0, int(days_left * frac))
+        if d in seen:
+            continue
+        seen.add(d)
+        time_rows.append({'label': 'At expiry' if d == 0 else f'{d}d left', 'days': d, 'T': d / 365.0})
+
+    matrix = []
+    for tr in time_rows:
+        cells = []
+        for sp in spot_cols:
+            op  = _bs_price(sp, strike, tr['T'], r, iv, opt_type)
+            pnl = round((op - eff_prc) * 100, 2)
+            cells.append({'spot': sp, 'price': round(op, 2), 'value': round(op * 100, 2), 'pnl': pnl})
+        matrix.append({'label': tr['label'], 'days': tr['days'], 'cells': cells})
+
+    return {
+        'symbol':       symbol.upper(),
+        'strike':       strike,
+        'optType':      opt_type,
+        'expiry':       expiry_str,
+        'daysLeft':     days_left,
+        'spot':         round(spot, 2),
+        'moneyness':    moneyness,
+        'pctToStrike':  round(pct_to_strike, 1),
+        'premium':      round(eff_prc, 2),
+        'marketPrice':  round(market_price, 2) if market_price else None,
+        'bsPrice':      round(bs_val, 2),
+        'iv':           round(iv * 100, 1),
+        'bid':          round(bid, 2) if bid else None,
+        'ask':          round(ask, 2) if ask else None,
+        'breakeven':    round(breakeven, 2),
+        'breakevenPct': round((breakeven - spot) / spot * 100, 1),
+        'volume':       volume,
+        'openInterest': oi,
+        # Greeks scaled to per-contract (100 shares) for intuitive reading
+        'delta':        round(delta, 4)          if delta is not None else None,
+        'thetaDay':     round(theta * 100, 2)    if theta is not None else None,
+        'gammaPoint':   round(gamma * 100, 4)    if gamma is not None else None,
+        'vegaPct':      round(vega * 100, 2)     if vega  is not None else None,
+        'spotCols':     spot_cols,
+        'matrix':       matrix,
+        # Earnings context
+        'earnings':     earnings,
+        # Expected move: IV-implied ±1σ move from now to earnings (as % of spot)
+        'expectedMovePct': round(iv * math.sqrt(max(earnings['daysAway'], 1) / 365) * 100, 1)
+                           if earnings else None,
+    }
 
 
 def _classify_trade(volume: int, oi: int, premium: float, bid: float, ask: float) -> str:

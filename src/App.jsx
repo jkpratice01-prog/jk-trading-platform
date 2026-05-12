@@ -22,6 +22,8 @@ const InstitutionalTracker    = lazy(() => import('./components/InstitutionalTra
 const InstitutionalFlowTracker = lazy(() => import('./components/InstitutionalFlowTracker.jsx'))
 const EarningsFlowScanner     = lazy(() => import('./components/EarningsFlowScanner.jsx'))
 const ATHCatalystScanner      = lazy(() => import('./components/ATHCatalystScanner.jsx'))
+const LowFloatMomentumScanner = lazy(() => import('./components/LowFloatMomentumScanner.jsx'))
+const OptionsDecoder          = lazy(() => import('./components/OptionsDecoder.jsx'))
 const AlertsTab               = lazy(() => import('./components/AlertsTab.jsx'))
 const ReplayChart             = lazy(() => import('./components/ReplayChart.jsx'))
 const EconomicCalendar        = lazy(() => import('./components/EconomicCalendar.jsx'))
@@ -32,28 +34,30 @@ import { getQuotes, getDayGainers, getDayLosers } from './api/yahooFinance.js'
 import { nowLabel } from './utils/helpers.js'
 
 const TABS = [
-  { id: 'dashboard',    label: 'Dashboard'        },
-  { id: 'analyzer',    label: 'Analyzer'         },
-  { id: 'crypto',      label: '₿ Crypto'         },
-  { id: 'calendar',    label: '📅 Calendar'      },
-  { id: 'risk',        label: '⚖️ Risk Sizer'    },
-  { id: 'news-impact', label: '📰 News Impact'   },
-  { id: 'scanner',     label: 'Scanner'          },
-  { id: 'premarket',   label: 'Pre-Market'       },
-  { id: 'flow',        label: 'Flow'             },
-  { id: 'earnings-flow',  label: '📅 Earnings Flow'  },
-  { id: 'ath-catalyst',  label: '🎯 ATH Catalyst'   },
-  { id: 'alerts',        label: '🔔 Alerts'          },
-  { id: 'replay',        label: '📽 Replay'          },
-  { id: 'intraday',    label: 'Intraday'         },
-  { id: 'strategy',    label: 'Strategy'         },
-  { id: 'compare',     label: 'Compare'          },
-  { id: 'tracker',     label: 'Tracker'          },
-  { id: 'institutional', label: 'Institutions'   },
-  { id: 'institutional-flow', label: 'Inst Flow' },
-  { id: 'trading',     label: 'Trading'          },
-  { id: 'journal',     label: 'Journal'          },
-  { id: 'export',      label: 'Export'           },
+  { id: 'dashboard',          label: 'Dashboard'        },
+  { id: 'analyzer',          label: 'Analyzer'         },
+  { id: 'options-decode',    label: '📐 Options Lab'   },
+  { id: 'flow',              label: '🌊 Flow'          },
+  { id: 'ath-catalyst',      label: '🎯 ATH Catalyst'  },
+  { id: 'low-float',         label: '⚡ Low Float'     },
+  { id: 'earnings-flow',     label: '📅 Earnings Flow' },
+  { id: 'news-impact',       label: '📰 News Impact'   },
+  { id: 'scanner',           label: 'Scanner'          },
+  { id: 'premarket',         label: 'Pre-Market'       },
+  { id: 'intraday',          label: 'Intraday'         },
+  { id: 'crypto',            label: '₿ Crypto'         },
+  { id: 'calendar',          label: '📅 Calendar'      },
+  { id: 'risk',              label: '⚖️ Risk Sizer'    },
+  { id: 'alerts',            label: '🔔 Alerts'        },
+  { id: 'replay',            label: '📽 Replay'        },
+  { id: 'strategy',          label: 'Strategy'         },
+  { id: 'compare',           label: 'Compare'          },
+  { id: 'tracker',           label: 'Tracker'          },
+  { id: 'institutional',     label: 'Institutions'     },
+  { id: 'institutional-flow', label: 'Inst Flow'       },
+  { id: 'trading',           label: 'Trading'          },
+  { id: 'journal',           label: 'Journal'          },
+  { id: 'export',            label: 'Export'           },
 ]
 
 const REFRESH_OPTIONS = [
@@ -181,6 +185,12 @@ export default function App() {
   const openAnalyzer = useCallback((ticker) => {
     setAnalyzeTicker(ticker)
     setActiveTab('analyzer')
+  }, [])
+
+  const [decodeNotation, setDecodeNotation] = useState(null)
+  const openOptionsDecode = useCallback((notation) => {
+    setDecodeNotation(notation)
+    setActiveTab('options-decode')
   }, [])
 
   const openSectorScan = useCallback((etfSym, sectorName) => {
@@ -355,13 +365,19 @@ export default function App() {
           <PreMarketTab onAnalyze={openAnalyzer} />
         )}
         {activeTab === 'flow' && (
-          <FlowScannerTab onAnalyze={openAnalyzer} />
+          <FlowScannerTab onAnalyze={openAnalyzer} onDecode={openOptionsDecode} />
         )}
         {activeTab === 'earnings-flow' && (
           <EarningsFlowScanner onAnalyze={openAnalyzer} />
         )}
         {activeTab === 'ath-catalyst' && (
           <ATHCatalystScanner onAnalyze={openAnalyzer} />
+        )}
+        {activeTab === 'low-float' && (
+          <LowFloatMomentumScanner onAnalyze={openAnalyzer} />
+        )}
+        {activeTab === 'options-decode' && (
+          <OptionsDecoder initialNotation={decodeNotation} />
         )}
         {activeTab === 'alerts' && (
           <AlertsTab onAnalyze={openAnalyzer} />

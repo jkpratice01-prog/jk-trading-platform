@@ -19,7 +19,7 @@ from server.db import init_db, get_db
 try:
     from server.services.quotes          import get_quotes
     from server.services.chart           import get_chart
-    from server.services.options         import get_options_chain
+    from server.services.options         import get_options_chain, decode_contract
     from server.services.movers          import get_movers
     from server.services.scanner         import scan_symbols, get_cached_scan
     from server.services.premarket       import get_premarket_movers
@@ -55,7 +55,7 @@ except Exception as e:
     print(f"Failed to import earnings flow: {e}")
 
 try:
-    from server.services.ath_scanner import scan_ath_catalysts, get_sector_momentum, get_stock_catalyst
+    from server.services.ath_scanner import scan_ath_catalysts, get_sector_momentum, get_stock_catalyst, scan_low_float_momentum
     print("ATH catalyst scanner imported successfully")
 except Exception as e:
     print(f"Failed to import ATH scanner: {e}")
@@ -203,6 +203,24 @@ async def movers(limit: int = 12):
 
 
 # ── Options ──────────────────────────────────────────────────────────────────
+
+@app.get("/api/options/decode")
+async def options_decode(
+    symbol:   str,
+    strike:   float,
+    opt_type: str,
+    expiry:   str,
+):
+    """
+    Full breakdown of one contract — Greeks, scenario matrix, education data.
+    opt_type: 'call' or 'put'
+    expiry:   YYYY-MM-DD
+    """
+    result = await asyncio.to_thread(decode_contract, symbol.upper(), strike, opt_type.lower(), expiry)
+    if 'error' in result:
+        raise HTTPException(400, result['error'])
+    return result
+
 
 @app.get("/api/options/{symbol}")
 async def options(symbol: str, expiry: str | None = None):
@@ -1022,6 +1040,23 @@ async def ath_catalyst_scan(min_score: int = 2):
 async def stock_catalyst(symbol: str):
     """ATH Catalyst score + signals for a single stock — used by the Analyzer."""
     result = await asyncio.to_thread(get_stock_catalyst, symbol.upper())
+    return result
+
+
+_low_float_cache: dict = {}
+_LOW_FLOAT_TTL = 600  # 10 minutes
+
+@app.get("/api/scan/low-float-momentum")
+async def low_float_momentum_scan():
+    """Scan small-cap / low-float stocks for MRAM-type momentum setups."""
+    import time
+    cached = _low_float_cache.get('data')
+    if cached:
+        result, ts = cached
+        if time.time() - ts < _LOW_FLOAT_TTL:
+            return result
+    result = await asyncio.to_thread(scan_low_float_momentum)
+    _low_float_cache['data'] = (result, time.time())
     return result
 
 
