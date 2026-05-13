@@ -265,6 +265,10 @@ export async function backendLowFloatMomentum() {
   return apiFetch('/api/scan/low-float-momentum', { _timeout: 120000 })
 }
 
+export async function backendThemeRockets(minGain = 20) {
+  return apiFetch(`/api/scan/theme-rockets?min_gain=${minGain}`, { _timeout: 120000 })
+}
+
 // ── Options Decoder ───────────────────────────────────────────────────────────
 export async function backendOptionsDecoder({ symbol, strike, optType, expiry }) {
   const p = new URLSearchParams({ symbol, strike, opt_type: optType, expiry })

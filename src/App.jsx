@@ -23,6 +23,7 @@ const InstitutionalFlowTracker = lazy(() => import('./components/InstitutionalFl
 const EarningsFlowScanner     = lazy(() => import('./components/EarningsFlowScanner.jsx'))
 const ATHCatalystScanner      = lazy(() => import('./components/ATHCatalystScanner.jsx'))
 const LowFloatMomentumScanner = lazy(() => import('./components/LowFloatMomentumScanner.jsx'))
+const ThemeRocketScanner      = lazy(() => import('./components/ThemeRocketScanner.jsx'))
 const OptionsDecoder          = lazy(() => import('./components/OptionsDecoder.jsx'))
 const AlertsTab               = lazy(() => import('./components/AlertsTab.jsx'))
 const ReplayChart             = lazy(() => import('./components/ReplayChart.jsx'))
@@ -40,6 +41,7 @@ const TABS = [
   { id: 'flow',              label: '🌊 Flow'          },
   { id: 'ath-catalyst',      label: '🎯 ATH Catalyst'  },
   { id: 'low-float',         label: '⚡ Low Float'     },
+  { id: 'theme-rockets',     label: '🚀 Theme Rockets' },
   { id: 'earnings-flow',     label: '📅 Earnings Flow' },
   { id: 'news-impact',       label: '📰 News Impact'   },
   { id: 'scanner',           label: 'Scanner'          },
@@ -375,6 +377,9 @@ export default function App() {
         )}
         {activeTab === 'low-float' && (
           <LowFloatMomentumScanner onAnalyze={openAnalyzer} />
+        )}
+        {activeTab === 'theme-rockets' && (
+          <ThemeRocketScanner onAnalyze={openAnalyzer} />
         )}
         {activeTab === 'options-decode' && (
           <OptionsDecoder initialNotation={decodeNotation} />

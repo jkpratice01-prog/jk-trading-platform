@@ -61,6 +61,12 @@ except Exception as e:
     print(f"Failed to import ATH scanner: {e}")
 
 try:
+    from server.services.theme_rocket_scanner import scan_theme_rockets
+    print("Theme rocket scanner imported successfully")
+except Exception as e:
+    print(f"Failed to import theme rocket scanner: {e}")
+
+try:
     from server.services.deep_info import get_deep_info
     print("Deep info imported successfully")
 except Exception as e:
@@ -1059,6 +1065,24 @@ async def low_float_momentum_scan():
             return result
     result = await asyncio.to_thread(scan_low_float_momentum)
     _low_float_cache['data'] = (result, time.time())
+    return result
+
+
+_theme_rocket_cache: dict = {}
+_THEME_ROCKET_TTL = 1800  # 30 minutes
+
+@app.get("/api/scan/theme-rockets")
+async def theme_rocket_scan(min_gain: float = 20.0):
+    """Scan hot-theme stocks (AI, Data Centers, Memory, etc.) for 30d price rockets."""
+    import time
+    cache_key = round(min_gain, 1)
+    cached = _theme_rocket_cache.get(cache_key)
+    if cached:
+        result, ts = cached
+        if time.time() - ts < _THEME_ROCKET_TTL:
+            return result
+    result = await asyncio.to_thread(scan_theme_rockets, min_gain)
+    _theme_rocket_cache[cache_key] = (result, time.time())
     return result
 
 
