@@ -104,7 +104,9 @@
       "Bash(pip show *)",
       "Bash(venv/bin/python -c \"import yfinance as yf; fi = yf.Ticker\\('AAPL'\\).fast_info; print\\(type\\(fi\\)\\); print\\(dir\\(fi\\)\\)\")",
       "Bash(venv/bin/python -c \"from server.services.ath_scanner import scan_ath_catalysts, get_sector_momentum; print\\('OK'\\)\")",
-      "Bash(server/venv/bin/python *)"
+      "Bash(server/venv/bin/python *)",
+      "Bash(server/venv/bin/uvicorn server.main:app --host 0.0.0.0 --port 8000 --reload)",
+      "Bash(npx --no vite build --mode development)"
     ]
   }
 }

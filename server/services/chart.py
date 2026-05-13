@@ -87,18 +87,54 @@ def _to_response(sym: str, bars: list, source: str, interval: str) -> dict:
     }
 
 
+def _hist_to_bars(hist, is_4h: bool) -> list:
+    """Shared post-processing: tz normalise → optional 4h resample → bar dicts."""
+    if hist.index.tzinfo is not None:
+        hist.index = hist.index.tz_convert('UTC').tz_localize(None)
+    if is_4h:
+        hist = (hist
+                .resample('4h')
+                .agg({'Open': 'first', 'High': 'max', 'Low': 'min',
+                      'Close': 'last', 'Volume': 'sum'})
+                .dropna(subset=['Open', 'Close']))
+    return [
+        {
+            't': ts.isoformat(),
+            'o': round(float(row['Open']),  4),
+            'h': round(float(row['High']),  4),
+            'l': round(float(row['Low']),   4),
+            'c': round(float(row['Close']), 4),
+            'v': int(row['Volume']),
+        }
+        for ts, row in hist.iterrows()
+        if pd.notna(row['Close'])
+    ]
+
+
 def get_chart(symbol: str, days: int = 60, interval: str = '1d',
-              alpaca_key: str = '', alpaca_secret: str = '') -> dict:
+              alpaca_key: str = '', alpaca_secret: str = '',
+              start: str = None, end: str = None) -> dict:
     sym = resolve_sym(symbol.upper())
 
-    # 4h is not a native yfinance interval — fetch 1h and resample
     is_4h       = interval == '4h'
     yf_interval = '1h' if is_4h else interval
 
-    max_days    = _MAX_DAYS.get(yf_interval, 3650)
-    fetch_days  = min(max(days, 1), max_days)
+    # ── Explicit date-range mode (bypasses days-based cache) ─────────────────
+    if start and end:
+        try:
+            t    = yf_ticker(sym)
+            hist = t.history(start=start, end=end, interval=yf_interval)
+            if hist.empty:
+                return {'symbol': sym, 'close': [], 'timestamps': [], 'error': 'No data for date range'}
+            bars = _hist_to_bars(hist, is_4h)
+            return _to_response(sym, bars, 'yfinance', interval)
+        except Exception as e:
+            return {'symbol': sym, 'close': [], 'timestamps': [], 'error': str(e)}
 
-    # Cache lookup
+    # ── Recent-days mode (cache-backed) ──────────────────────────────────────
+    max_days   = _MAX_DAYS.get(yf_interval, 3650)
+    fetch_days = min(max(days, 1), max_days)
+
     cached = _read_cache(sym, interval, fetch_days)
     if cached:
         return _to_response(sym, [dict(r) for r in cached], 'cache', interval)
@@ -108,37 +144,8 @@ def get_chart(symbol: str, days: int = 60, interval: str = '1d',
         hist = t.history(period=f'{fetch_days}d', interval=yf_interval)
         if hist.empty:
             return {'symbol': sym, 'close': [], 'timestamps': [], 'error': 'No data'}
-
-        # ── Timezone: always convert to UTC before stripping ─────────────────
-        # yfinance returns Eastern-timezone-aware timestamps. tz_localize(None)
-        # alone keeps Eastern values but removes the label, causing timestamp
-        # errors on machines not in ET. Convert to UTC first.
-        if hist.index.tzinfo is not None:
-            hist.index = hist.index.tz_convert('UTC').tz_localize(None)
-
-        # Resample to 4h
-        if is_4h:
-            hist = (hist
-                    .resample('4h')
-                    .agg({'Open': 'first', 'High': 'max', 'Low': 'min',
-                          'Close': 'last', 'Volume': 'sum'})
-                    .dropna(subset=['Open', 'Close']))
-
-        bars = [
-            {
-                't': ts.isoformat(),            # UTC naive ISO string
-                'o': round(float(row['Open']),  4),
-                'h': round(float(row['High']),  4),
-                'l': round(float(row['Low']),   4),
-                'c': round(float(row['Close']), 4),
-                'v': int(row['Volume']),
-            }
-            for ts, row in hist.iterrows()
-            if pd.notna(row['Close'])
-        ]
-
+        bars = _hist_to_bars(hist, is_4h)
         _save_cache(sym, interval, bars)
         return _to_response(sym, bars, 'yfinance', interval)
-
     except Exception as e:
         return {'symbol': sym, 'close': [], 'timestamps': [], 'error': str(e)}

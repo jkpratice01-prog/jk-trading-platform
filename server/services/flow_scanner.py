@@ -1,5 +1,4 @@
 """Market-wide unusual options flow scanner."""
-import yfinance as yf
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, date
@@ -79,11 +78,12 @@ def _smart_money_score(vol_oi: float, otm: bool, earnings_before: bool,
 def _scan_ticker(sym: str, underlying: float, earnings: dict | None) -> list[dict]:
     """
     Scan one ticker across up to 6 expiries.
-    Uses a plain yf.Ticker (not yf_session) because .options needs the standard API path.
+    Uses yf_session ticker for rate-limit resilience across all calls.
     Earnings is pre-fetched once per stock by the caller.
     """
     try:
-        t    = yf.Ticker(sym)
+        from server.services.yf_session import ticker as yf_ticker
+        t    = yf_ticker(sym)
         exps = t.options
         if not exps:
             return []

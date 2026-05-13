@@ -77,13 +77,16 @@ export default function ReplayChart() {
   const [error,    setError]    = useState(null)
 
   // Controls
-  const [sym,      setSym]      = useState('SPY')
-  const [tfIdx,    setTfIdx]    = useState(3)        // 30m default
-  const [speedIdx, setSpeedIdx] = useState(0)        // 1s/bar default
-  const [playing,  setPlaying]  = useState(false)
-  const [replayIdx, setReplayIdx] = useState(START_BARS)
-  const [showVWAP, setShowVWAP] = useState(false)
-  const [showEMA,  setShowEMA]  = useState(false)
+  const [sym,        setSym]        = useState('SPY')
+  const [tfIdx,      setTfIdx]      = useState(3)        // 30m default
+  const [speedIdx,   setSpeedIdx]   = useState(0)        // 1s/bar default
+  const [playing,    setPlaying]    = useState(false)
+  const [replayIdx,  setReplayIdx]  = useState(START_BARS)
+  const [showVWAP,   setShowVWAP]   = useState(false)
+  const [showEMA,    setShowEMA]    = useState(false)
+  const [useDateRange, setUseDateRange] = useState(false)
+  const [startDate,  setStartDate]  = useState('')
+  const [endDate,    setEndDate]    = useState('')
 
   // Paper trades
   const [trades,    setTrades]    = useState([])
@@ -141,11 +144,16 @@ export default function ReplayChart() {
   // ── Load data ─────────────────────────────────────────────────────────────
   async function load() {
     const tf = TIMEFRAMES[tfIdx]
+    if (useDateRange && (!startDate || !endDate)) {
+      setError('Enter both start and end dates'); return
+    }
     setLoading(true); setError(null); setPlaying(false); setOpenTrade(null); setTrades([])
     clearInterval(playRef.current)
     try {
-      const d = await backendChart(sym.trim().toUpperCase(), tf.days, tf.interval)
-      if (!d?.timestamps?.length) { setError('No data returned'); return }
+      const d = useDateRange
+        ? await backendChart(sym.trim().toUpperCase(), tf.days, tf.interval, startDate, endDate)
+        : await backendChart(sym.trim().toUpperCase(), tf.days, tf.interval)
+      if (!d?.timestamps?.length) { setError('No data returned for this range'); return }
       setAllData(d)
       setReplayIdx(Math.min(START_BARS, d.timestamps.length))
     } catch (e) {
@@ -292,6 +300,37 @@ export default function ReplayChart() {
               </button>
             ))}
           </div>
+
+          {/* Date range toggle */}
+          <button
+            onClick={() => setUseDateRange(v => !v)}
+            style={{
+              fontSize: 10, padding: '3px 8px', borderRadius: 4, border: 'none', cursor: 'pointer',
+              background: useDateRange ? 'rgba(129,140,248,0.18)' : 'var(--bg-tertiary)',
+              color: useDateRange ? '#818cf8' : 'var(--text-tertiary)',
+              outline: useDateRange ? '1px solid #818cf8' : '1px solid transparent',
+            }}
+          >
+            📅 Date range
+          </button>
+
+          {useDateRange && (
+            <>
+              <input
+                type="date"
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+                style={{ fontSize: 11, padding: '4px 6px', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '0.5px solid var(--border-subtle)', borderRadius: 4 }}
+              />
+              <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>→</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={e => setEndDate(e.target.value)}
+                style={{ fontSize: 11, padding: '4px 6px', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '0.5px solid var(--border-subtle)', borderRadius: 4 }}
+              />
+            </>
+          )}
 
           <button className="btn btn-primary" onClick={load} disabled={loading} style={{ fontSize: 11 }}>
             {loading ? 'Loading…' : '⬇ Load'}

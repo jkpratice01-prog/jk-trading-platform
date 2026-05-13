@@ -175,9 +175,11 @@ async def quote(symbol: str):
 # ── Chart ─────────────────────────────────────────────────────────────────────
 
 @app.get("/api/chart/{symbol}")
-async def chart(symbol: str, days: int = 60, interval: str = "1d"):
+async def chart(symbol: str, days: int = 60, interval: str = "1d",
+                start_date: str = None, end_date: str = None):
     result = await asyncio.to_thread(
-        get_chart, symbol.upper(), days, interval, ALPACA_KEY, ALPACA_SECRET
+        get_chart, symbol.upper(), days, interval, ALPACA_KEY, ALPACA_SECRET,
+        start_date, end_date,
     )
     if not result.get("close"):
         raise HTTPException(404, f"No chart data for {symbol}")

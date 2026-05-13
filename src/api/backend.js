@@ -45,8 +45,10 @@ export async function backendQuotes(symbols) {
   return result
 }
 
-export async function backendChart(symbol, days = 60, interval = '1d') {
-  return apiFetch(`/api/chart/${symbol}?days=${days}&interval=${interval}`)
+export async function backendChart(symbol, days = 60, interval = '1d', startDate = null, endDate = null) {
+  let qs = `days=${days}&interval=${interval}`
+  if (startDate && endDate) qs += `&start_date=${startDate}&end_date=${endDate}`
+  return apiFetch(`/api/chart/${symbol}?${qs}`)
 }
 
 export async function backendMovers(limit = 12) {
