@@ -348,7 +348,7 @@ export default function PreRocketScanner({ onAnalyze }) {
                   key={t}
                   onClick={() => setActiveTheme(t)}
                   style={{
-                    fontSize: 10, padding: '3px 12px', borderRadius: 20, cursor: 'pointer', border: 'none',
+                    fontSize: 10, padding: '3px 12px', borderRadius: 20, cursor: 'pointer',
                     background: activeTheme === t ? 'var(--bg-tertiary)' : 'transparent',
                     color:      activeTheme === t ? 'var(--text-primary)' : 'var(--text-tertiary)',
                     border:     activeTheme === t ? '1px solid var(--border-subtle)' : '1px solid transparent',
