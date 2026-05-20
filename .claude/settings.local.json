@@ -106,7 +106,13 @@
       "Bash(venv/bin/python -c \"from server.services.ath_scanner import scan_ath_catalysts, get_sector_momentum; print\\('OK'\\)\")",
       "Bash(server/venv/bin/python *)",
       "Bash(server/venv/bin/uvicorn server.main:app --host 0.0.0.0 --port 8000 --reload)",
-      "Bash(npx --no vite build --mode development)"
+      "Bash(npx --no vite build --mode development)",
+      "Bash(kill 4621 4623 4622 4583 4584)",
+      "Bash(python -m uvicorn server.main:app --reload --port 8000)",
+      "Bash(echo \"uvicorn PID: $!\")",
+      "Bash(echo \"vite PID: $!\")",
+      "Bash(/opt/homebrew/Cellar/python@3.12/3.12.6/Frameworks/Python.framework/Versions/3.12/Resources/Python.app/Contents/MacOS/Python -m uvicorn server.main:app --reload --port 8000)",
+      "Bash(python3.12 -m uvicorn --version)"
     ]
   }
 }
