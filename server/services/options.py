@@ -233,11 +233,11 @@ def decode_contract(symbol: str, strike: float, opt_type: str, expiry_str: str) 
         'breakevenPct': round((breakeven - spot) / spot * 100, 1),
         'volume':       volume,
         'openInterest': oi,
-        # Greeks scaled to per-contract (100 shares) for intuitive reading
-        'delta':        round(delta, 4)          if delta is not None else None,
-        'thetaDay':     round(theta * 100, 2)    if theta is not None else None,
-        'gammaPoint':   round(gamma * 100, 4)    if gamma is not None else None,
-        'vegaPct':      round(vega * 100, 2)     if vega  is not None else None,
+        # Greeks per share (standard broker convention — matches Robinhood/TastyTrade display)
+        'delta':        round(delta, 4)   if delta is not None else None,
+        'thetaDay':     round(theta, 4)   if theta is not None else None,
+        'gammaPoint':   round(gamma, 6)   if gamma is not None else None,
+        'vegaPct':      round(vega, 5)    if vega  is not None else None,
         'spotCols':     spot_cols,
         'matrix':       matrix,
         # Earnings context

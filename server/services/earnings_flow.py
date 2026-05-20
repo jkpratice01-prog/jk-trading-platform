@@ -1,18 +1,21 @@
 """
 Pre-earnings institutional flow scanner.
 
-Detects when institutions are quietly positioning (buying calls/stock)
-ahead of earnings by combining: options C/P ratio, call Vol/OI,
-stock volume surge, and hot-strike detection.
+Two-phase approach:
+  Phase 1 — dynamic universe (S&P 500/400/600 via Wikipedia) + quick earnings-date
+             pre-filter.  Falls back to static SCAN_SYMBOLS if Wikipedia unreachable.
+  Phase 2 — full options-flow analysis only on Phase 1 candidates.
 """
 import time
+import threading
 import pandas as pd
 from server.services.yf_session import ticker as yf_ticker
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+# ── Static fallback universe ──────────────────────────────────────────────────
 SCAN_SYMBOLS = [
-    # Mega-cap tech (high earnings impact)
+    # Mega-cap tech
     'AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN', 'GOOGL', 'META', 'AMD', 'INTC', 'QCOM',
     'AVGO', 'ORCL', 'CRM', 'ADBE', 'NOW', 'SNOW', 'PLTR', 'COIN', 'RBLX', 'UBER',
     # Finance
@@ -25,19 +28,90 @@ SCAN_SYMBOLS = [
     'WMT', 'COST', 'TGT', 'HD', 'LOW', 'NKE', 'SBUX', 'MCD',
     # Media / Streaming
     'NFLX', 'DIS', 'SPOT', 'ROKU',
-    # Semis
-    'MU', 'AMAT', 'LRCX', 'KLAC', 'TXN',
+    # Semis / Optical Networking
+    'MU', 'AMAT', 'LRCX', 'KLAC', 'TXN', 'AAOI', 'COHR', 'LITE', 'CIEN', 'INFN', 'VIAVI', 'IPGP',
     # EV / Growth
     'RIVN', 'LCID', 'SOFI', 'HOOD',
+    # Clean Energy & Hydrogen
+    'FCEL', 'PLUG', 'BE', 'BLDP', 'CLNE', 'HTOO',
+    # Small / Micro-cap (manually tracked)
+    'ONDS', 'FIG',
 ]
-# Deduplicate preserving order
-_seen: set = set()
-SCAN_SYMBOLS = [s for s in SCAN_SYMBOLS if not (_seen.add(s) or s in _seen - {s})]  # type: ignore
 SCAN_SYMBOLS = list(dict.fromkeys(SCAN_SYMBOLS))
 
+# ── Universe cache (1-hour TTL) ───────────────────────────────────────────────
+_universe_cache: list[str] = []
+_universe_ts: float = 0.0
+_UNIVERSE_TTL = 3600
+_universe_lock = threading.Lock()
+
+
+def _fetch_universe() -> list[str]:
+    """
+    Fetch S&P 500 + S&P 400 (mid-cap) + S&P 600 (small-cap) tickers from Wikipedia.
+    Always merges static SCAN_SYMBOLS so known names are never dropped.
+    Returns SCAN_SYMBOLS on total failure.
+    """
+    symbols: set[str] = set()
+    wiki_pages = [
+        'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies',
+        'https://en.wikipedia.org/wiki/List_of_S%26P_400_companies',
+        'https://en.wikipedia.org/wiki/List_of_S%26P_600_companies',
+    ]
+    for url in wiki_pages:
+        try:
+            tables = pd.read_html(url)
+            for tbl in tables:
+                for col in ('Symbol', 'Ticker symbol', 'Ticker'):
+                    if col in tbl.columns:
+                        raw = tbl[col].dropna().astype(str)
+                        symbols.update(raw.str.replace('.', '-', regex=False).str.strip())
+                        break
+        except Exception:
+            pass
+
+    # Always include static list — ensures known small/micro-caps are covered
+    symbols.update(SCAN_SYMBOLS)
+
+    if len(symbols) <= len(SCAN_SYMBOLS):
+        # Wikipedia fetch produced nothing new — return static list
+        return SCAN_SYMBOLS[:]
+
+    return sorted(symbols)
+
+
+def _get_universe() -> list[str]:
+    """Return cached universe, refreshing if older than 1 hour."""
+    global _universe_cache, _universe_ts
+    with _universe_lock:
+        if time.time() - _universe_ts > _UNIVERSE_TTL:
+            _universe_cache = _fetch_universe()
+            _universe_ts = time.time()
+        return _universe_cache[:]
+
+
+# ── Phase 1: lightweight earnings-date check ──────────────────────────────────
+
+def _quick_check(symbol: str, days_ahead: int) -> str | None:
+    """Return symbol if it has upcoming earnings within days_ahead, else None.
+    Only fetches earnings_dates — no options chain, ~5× faster than full _analyze."""
+    try:
+        t = yf_ticker(symbol)
+        ed = t.earnings_dates
+        if ed is None or ed.empty:
+            return None
+        now = pd.Timestamp.now(tz='UTC')
+        cutoff = now + pd.Timedelta(days=days_ahead)
+        future = ed[(ed.index.normalize() >= now.normalize()) & (ed.index <= cutoff)]
+        return symbol if not future.empty else None
+    except Exception:
+        return None
+
+
+# ── Phase 2: full options-flow analysis ───────────────────────────────────────
 
 def _nearest_earnings(ticker) -> tuple | None:
-    """Return (earnings_timestamp, days_away) for the nearest upcoming earnings or None."""
+    """Return (earnings_timestamp, days_away) for nearest upcoming earnings or None."""
     try:
         ed = ticker.earnings_dates
         if ed is None or ed.empty:
@@ -98,15 +172,15 @@ def _analyze(symbol: str, days_ahead: int, attempt: int = 0) -> dict | None:
         if call_vol + put_vol < 100:
             return None  # Too illiquid
 
-        cp_ratio     = round(call_vol / put_vol, 2) if put_vol > 0 else float(call_vol)
-        call_vol_oi  = round(call_vol / call_oi,  2) if call_oi  > 0 else 0.0
-        put_vol_oi   = round(put_vol  / put_oi,   2) if put_oi   > 0 else 0.0
+        cp_ratio    = round(call_vol / put_vol, 2) if put_vol > 0 else float(call_vol)
+        call_vol_oi = round(call_vol / call_oi,  2) if call_oi  > 0 else 0.0
+        put_vol_oi  = round(put_vol  / put_oi,   2) if put_oi   > 0 else 0.0
 
         # Hot strike: single strike where vol/OI > 1.5 (targeted institutional bet)
         calls['_voi'] = calls['volume'].fillna(0) / calls['openInterest'].replace(0, 1)
         hot = calls[calls['_voi'] > 1.5].sort_values('volume', ascending=False)
-        hot_strike      = float(hot.iloc[0]['strike'])     if not hot.empty else None
-        hot_strike_vol  = int(hot.iloc[0]['volume'])       if not hot.empty else None
+        hot_strike     = float(hot.iloc[0]['strike']) if not hot.empty else None
+        hot_strike_vol = int(hot.iloc[0]['volume'])   if not hot.empty else None
 
         avg_call_iv = float(calls['impliedVolatility'].mean()) if 'impliedVolatility' in calls.columns else None
 
@@ -160,50 +234,69 @@ def _analyze(symbol: str, days_ahead: int, attempt: int = 0) -> dict | None:
             direction = 'NEUTRAL'
 
         return {
-            'symbol':        symbol,
-            'earningsDate':  earnings_dt.strftime('%Y-%m-%d'),
+            'symbol':         symbol,
+            'earningsDate':   earnings_dt.strftime('%Y-%m-%d'),
             'daysToEarnings': days_away,
-            'direction':     direction,
-            'score':         score,
-            'signals':       signals,
-            'callVolume':    call_vol,
-            'putVolume':     put_vol,
-            'cpRatio':       cp_ratio,
-            'callVolOI':     call_vol_oi,
-            'putVolOI':      put_vol_oi,
-            'stockVolRatio': round(stock_vol_ratio, 2),
-            'hotStrike':     hot_strike,
-            'hotStrikeVol':  hot_strike_vol,
-            'avgCallIV':     round(avg_call_iv * 100, 1) if avg_call_iv else None,
-            'price':         round(current_price, 2),
-            'expiry':        target_expiry,
-            'scannedAt':     datetime.utcnow().isoformat(),
+            'direction':      direction,
+            'score':          score,
+            'signals':        signals,
+            'callVolume':     call_vol,
+            'putVolume':      put_vol,
+            'cpRatio':        cp_ratio,
+            'callVolOI':      call_vol_oi,
+            'putVolOI':       put_vol_oi,
+            'stockVolRatio':  round(stock_vol_ratio, 2),
+            'hotStrike':      hot_strike,
+            'hotStrikeVol':   hot_strike_vol,
+            'avgCallIV':      round(avg_call_iv * 100, 1) if avg_call_iv else None,
+            'price':          round(current_price, 2),
+            'expiry':         target_expiry,
+            'scannedAt':      datetime.utcnow().isoformat(),
         }
     except Exception as e:
-        # Retry once on rate limit with back-off
         if attempt == 0 and ('rate' in str(e).lower() or 'too many' in str(e).lower()):
             time.sleep(4)
             return _analyze(symbol, days_ahead, attempt=1)
         return None
 
 
+# ── Entry point ───────────────────────────────────────────────────────────────
+
 def scan_earnings_flow(days_ahead: int = 21, limit: int = 60) -> dict:
-    symbols = SCAN_SYMBOLS[:limit]
-    results = []
-    # 4 workers to stay within Yahoo Finance rate limits
+    """
+    Phase 1: build dynamic universe (S&P 500/400/600 + static fallback),
+             then quick-filter to tickers with earnings in days_ahead window.
+    Phase 2: full options-flow analysis on candidates only.
+    limit caps the returned results (highest-scored first).
+    """
+    # Phase 1 — universe + quick earnings filter
+    universe = _get_universe()
+    candidates: list[str] = []
+    # 10 workers OK — lightweight call, no options chain
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        futs = {pool.submit(_quick_check, s, days_ahead): s for s in universe}
+        for fut in as_completed(futs, timeout=180):
+            r = fut.result()
+            if r:
+                candidates.append(r)
+
+    # Phase 2 — full analysis on candidates
+    results: list[dict] = []
+    # 4 workers — options chain calls are heavier, respect Yahoo rate limits
     with ThreadPoolExecutor(max_workers=4) as pool:
-        futures = {pool.submit(_analyze, s, days_ahead): s for s in symbols}
-        for fut in as_completed(futures, timeout=120):
+        futs = {pool.submit(_analyze, s, days_ahead): s for s in candidates}
+        for fut in as_completed(futs, timeout=300):
             r = fut.result()
             if r:
                 results.append(r)
 
-    # Sort: highest score first, then nearest earnings
     results.sort(key=lambda x: (-x['score'], x['daysToEarnings']))
 
     return {
-        'results':   results,
-        'count':     len(results),
-        'daysAhead': days_ahead,
-        'scannedAt': datetime.utcnow().isoformat(),
+        'results':         results[:limit],
+        'count':           len(results),
+        'daysAhead':       days_ahead,
+        'universeSize':    len(universe),
+        'candidatesFound': len(candidates),
+        'scannedAt':       datetime.utcnow().isoformat(),
     }

@@ -14,12 +14,14 @@ THEME_UNIVERSE = {
         'IONQ', 'RGTI', 'QUBT', 'KULR', 'IREN', 'ARQQ',
     ],
     "Data Center Build-Out": [
-        'VRT',  'ETN',  'FIX',  'PWR',  'NVEE', 'MYRG', 'WLDN',
+        'VRT',  'ETN',  'FIX',  'PWR',  'MYRG', 'WLDN',
         'EQIX', 'DLR',  'AMT',  'SMCI', 'DELL', 'HPE',
-        'ANET', 'JNPR', 'CSCO',
+        'ANET', 'CSCO',
+        # Optical networking / transceivers (data center interconnects)
+        'AAOI', 'COHR', 'LITE', 'CIEN', 'INFN', 'VIAVI', 'IPGP',
     ],
     "Memory & Storage": [
-        'MU', 'SNDK', 'WDC', 'STX', 'NTAP', 'PSTG', 'NAND',
+        'MU', 'SNDK', 'WDC', 'STX', 'NTAP', 'PSTG',
     ],
     "Semiconductors": [
         'NVDA', 'AMD', 'AVGO', 'AMAT', 'LRCX', 'ASML', 'TSM', 'ARM',
@@ -39,6 +41,9 @@ THEME_UNIVERSE = {
     "Biotech Catalyst": [
         'LLY', 'MRNA', 'VRTX', 'RXRX', 'HIMS', 'ROIV', 'VKTX',
         'NVAX', 'IMVT', 'NKTR',
+    ],
+    "Clean Energy & Hydrogen": [
+        'FCEL', 'PLUG', 'BE', 'BLDP', 'CLNE', 'HTOO',
     ],
 }
 

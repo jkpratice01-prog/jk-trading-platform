@@ -58,7 +58,7 @@ const GREEKS = [
     icon:  'Θ',
     color: 'var(--red-text)',
     what:  'How much value the option loses per day just by sitting still (time decay).',
-    read:  (v) => `You lose ${fmt$(Math.abs(v))} every calendar day you hold this contract, even if the stock doesn't move.`,
+    read:  (v) => `You lose ${fmt$(Math.abs(v * 100))} every calendar day you hold this contract (${fmt$(Math.abs(v))} per share), even if the stock doesn't move.`,
     scale: 'always negative. Accelerates as expiry approaches.',
   },
   {
@@ -76,7 +76,7 @@ const GREEKS = [
     icon:  'V',
     color: '#818cf8',
     what:  'How much the option gains/loses per 1% increase in implied volatility (IV).',
-    read:  (v) => `If IV rises 1%, this contract gains ${fmt$(Math.abs(v))}. If IV crashes (like after earnings), you can lose money even if the stock moves your way.`,
+    read:  (v) => `If IV rises 1%, this contract gains ${fmt$(Math.abs(v * 100))} (${fmt$(Math.abs(v))} per share). If IV crashes (like after earnings), you can lose money even if the stock moves your way.`,
     scale: 'highest for ATM, long-dated options. LEAPS are very vega-sensitive.',
   },
 ]
@@ -88,6 +88,39 @@ export default function OptionsDecoder({ initialNotation }) {
   const [data,     setData]     = useState(null)
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState(null)
+  const [position, setPosition] = useState({ entryPrice: '', contracts: '1' })
+  const [pasteMode, setPasteMode] = useState(false)
+  const [pasteText, setPasteText] = useState('')
+  const [pasteErr,  setPasteErr]  = useState(null)
+
+  function parseOrderPaste(text) {
+    // "Filled quantity\n1 contract at $1.65"  OR  "1 contract at $1.65" on same line
+    // Also handles "Filled\n5/12... 1 contract at $1.65"
+    const filledMatch = text.match(/(\d+)\s+contract[s]?\s+at\s+\$([0-9]+(?:\.[0-9]+)?)/i)
+    if (filledMatch) {
+      return { contracts: filledMatch[1], entryPrice: filledMatch[2] }
+    }
+    // Fallback: "Limit price\n$1.65" or "Limit price $1.65"
+    const limitMatch = text.match(/limit\s+price[:\s]+\$([0-9]+(?:\.[0-9]+)?)/i)
+    const qtyMatch   = text.match(/quantity[:\s]+(\d+)/i)
+    if (limitMatch) {
+      return { contracts: qtyMatch ? qtyMatch[1] : '1', entryPrice: limitMatch[1] }
+    }
+    return null
+  }
+
+  function handlePaste(text) {
+    setPasteText(text)
+    setPasteErr(null)
+    if (!text.trim()) return
+    const result = parseOrderPaste(text)
+    if (result) {
+      setPosition({ entryPrice: result.entryPrice, contracts: result.contracts })
+      setPasteErr(null)
+    } else {
+      setPasteErr('Could not find price. Check format or enter manually below.')
+    }
+  }
 
   // Auto-decode when launched from the flow scanner
   useEffect(() => {
@@ -115,8 +148,29 @@ export default function OptionsDecoder({ initialNotation }) {
     }
   }
 
-  // Max absolute P&L across entire matrix (for color scaling)
-  const maxAbs = data ? Math.max(...data.matrix.flatMap(r => r.cells.map(c => Math.abs(c.pnl))), 1) : 1
+  // Position simulator — derived from user inputs
+  const pos = (() => {
+    const ep = parseFloat(position.entryPrice)
+    const ct = Math.max(1, parseInt(position.contracts) || 1)
+    if (!ep || ep <= 0) return null
+    return { entryPrice: ep, contracts: ct }
+  })()
+
+  function cellPnl(cell) {
+    if (pos) return (cell.price - pos.entryPrice) * pos.contracts * 100
+    return cell.pnl
+  }
+
+  const posTotalCost     = pos ? pos.entryPrice * pos.contracts * 100 : null
+  const posCurrentValue  = pos && data ? data.premium * pos.contracts * 100 : null
+  const posUnrealizedPnl = pos && data ? (data.premium - pos.entryPrice) * pos.contracts * 100 : null
+  const posUnrealizedPct = pos && posTotalCost ? (posUnrealizedPnl / posTotalCost) * 100 : null
+  const posBreakeven     = pos && data
+    ? (data.optType === 'call' ? data.strike + pos.entryPrice : data.strike - pos.entryPrice)
+    : null
+
+  // Max absolute P&L across matrix (for color scaling) — uses position basis if set
+  const maxAbs = data ? Math.max(...data.matrix.flatMap(r => r.cells.map(c => Math.abs(cellPnl(c)))), 1) : 1
 
   const moneynessColor = data?.moneyness === 'ITM' ? 'var(--green-text)'
                        : data?.moneyness === 'OTM' ? 'var(--red-text)'
@@ -287,6 +341,180 @@ export default function OptionsDecoder({ initialNotation }) {
           </div>
         </div>
 
+        {/* My Position Simulator */}
+        <div className="card" style={{ borderLeft: '3px solid #818cf8' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <span style={{ fontSize: 18 }}>💼</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>My Position Simulator</span>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+              <button
+                onClick={() => setPasteMode(false)}
+                style={{
+                  padding: '4px 10px', fontSize: 10, borderRadius: 5, cursor: 'pointer',
+                  background: !pasteMode ? '#818cf8' : 'var(--bg-tertiary)',
+                  color: !pasteMode ? '#fff' : 'var(--text-tertiary)',
+                  border: `1px solid ${!pasteMode ? '#818cf8' : 'var(--border-subtle)'}`,
+                }}
+              >Manual</button>
+              <button
+                onClick={() => setPasteMode(true)}
+                style={{
+                  padding: '4px 10px', fontSize: 10, borderRadius: 5, cursor: 'pointer',
+                  background: pasteMode ? '#818cf8' : 'var(--bg-tertiary)',
+                  color: pasteMode ? '#fff' : 'var(--text-tertiary)',
+                  border: `1px solid ${pasteMode ? '#818cf8' : 'var(--border-subtle)'}`,
+                }}
+              >📋 Paste Order</button>
+            </div>
+          </div>
+
+          {pasteMode ? (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 6, lineHeight: 1.6 }}>
+                Copy your order details from Robinhood (or any broker) and paste below — price and quantity auto-fill.
+              </div>
+              <textarea
+                rows={6}
+                placeholder={`Paste order details here, e.g.:\n\nFilled quantity\n1 contract at $1.65\nLimit price\n$1.65\nEst cost\n$165.04`}
+                value={pasteText}
+                onChange={e => handlePaste(e.target.value)}
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  padding: '8px 10px', fontSize: 11, fontFamily: 'var(--font-mono)',
+                  background: 'var(--bg-tertiary)', color: 'var(--text-primary)',
+                  border: `1px solid ${pasteErr ? 'var(--red-text)' : pos ? 'var(--green-text)' : 'var(--border-subtle)'}`,
+                  borderRadius: 6, outline: 'none', resize: 'vertical', lineHeight: 1.5,
+                }}
+              />
+              {pasteErr && (
+                <div style={{ fontSize: 10, color: 'var(--red-text)', marginTop: 4 }}>{pasteErr}</div>
+              )}
+              {pos && !pasteErr && (
+                <div style={{ fontSize: 10, color: 'var(--green-text)', marginTop: 4 }}>
+                  ✓ Parsed — {pos.contracts} contract{pos.contracts > 1 ? 's' : ''} at ${pos.entryPrice.toFixed(2)}/sh
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 14 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: 9, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Entry Price (per share)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                placeholder={`e.g. ${data.premium.toFixed(2)}`}
+                value={position.entryPrice}
+                onChange={e => setPosition(p => ({ ...p, entryPrice: e.target.value }))}
+                style={{
+                  width: 130, padding: '6px 10px', fontSize: 13,
+                  fontFamily: 'var(--font-mono)',
+                  background: 'var(--bg-tertiary)', color: 'var(--text-primary)',
+                  border: `1px solid ${pos ? '#818cf8' : 'var(--border-subtle)'}`,
+                  borderRadius: 6, outline: 'none',
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: 9, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Contracts
+              </label>
+              <input
+                type="number"
+                step="1"
+                min="1"
+                value={position.contracts}
+                onChange={e => setPosition(p => ({ ...p, contracts: e.target.value }))}
+                style={{
+                  width: 90, padding: '6px 10px', fontSize: 13,
+                  fontFamily: 'var(--font-mono)',
+                  background: 'var(--bg-tertiary)', color: 'var(--text-primary)',
+                  border: `1px solid ${pos ? '#818cf8' : 'var(--border-subtle)'}`,
+                  borderRadius: 6, outline: 'none',
+                }}
+              />
+            </div>
+            {pos && (
+              <button
+                onClick={() => { setPosition({ entryPrice: '', contracts: '1' }); setPasteText(''); setPasteErr(null) }}
+                style={{
+                  padding: '6px 12px', fontSize: 10, borderRadius: 6, cursor: 'pointer',
+                  background: 'var(--bg-tertiary)', color: 'var(--text-tertiary)',
+                  border: '1px solid var(--border-subtle)',
+                }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          {pos ? (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 12 }}>
+                {[
+                  { label: 'Total Cost',       val: `$${posTotalCost.toFixed(0)}`,
+                    color: 'var(--text-primary)',
+                    tip: `${pos.contracts} contract${pos.contracts > 1 ? 's' : ''} × 100 shares × $${pos.entryPrice.toFixed(2)} entry price` },
+                  { label: 'Current Value',    val: `$${posCurrentValue.toFixed(0)}`,
+                    color: 'var(--text-primary)',
+                    tip: `Current market price $${data.premium.toFixed(2)} × ${pos.contracts * 100} shares` },
+                  { label: 'Unrealized P&L',   val: `${posUnrealizedPnl >= 0 ? '+' : ''}$${posUnrealizedPnl.toFixed(0)}`,
+                    color: posUnrealizedPnl >= 0 ? 'var(--green-text)' : 'var(--red-text)',
+                    tip: `${posUnrealizedPct >= 0 ? '+' : ''}${posUnrealizedPct.toFixed(1)}% return on cost` },
+                  { label: 'Return %',         val: `${posUnrealizedPct >= 0 ? '+' : ''}${posUnrealizedPct.toFixed(1)}%`,
+                    color: posUnrealizedPct >= 0 ? 'var(--green-text)' : 'var(--red-text)' },
+                  { label: 'Max Loss',         val: `$${posTotalCost.toFixed(0)}`,
+                    color: 'var(--red-text)',
+                    tip: 'Options can expire worthless — max loss is total premium paid' },
+                  { label: 'Your Breakeven',   val: `$${posBreakeven.toFixed(2)}`,
+                    color: 'var(--amber-text)',
+                    tip: `Stock must reach $${posBreakeven.toFixed(2)} at expiry for zero P&L` },
+                  { label: 'Entry vs Now',     val: `${(data.premium - pos.entryPrice) >= 0 ? '+' : ''}$${(data.premium - pos.entryPrice).toFixed(2)}/sh`,
+                    color: (data.premium - pos.entryPrice) >= 0 ? 'var(--green-text)' : 'var(--red-text)',
+                    tip: `Contract moved from $${pos.entryPrice.toFixed(2)} → $${data.premium.toFixed(2)} per share` },
+                  { label: 'Days Remaining',   val: `${data.daysLeft}d`,
+                    color: data.daysLeft <= 7 ? 'var(--red-text)' : 'var(--text-primary)' },
+                ].map(({ label, val, color, tip }) => (
+                  <div key={label} title={tip} style={{
+                    padding: '8px 12px', background: 'var(--bg-tertiary)', borderRadius: 6,
+                    border: '0.5px solid var(--border-subtle)', cursor: tip ? 'help' : undefined,
+                  }}>
+                    <div style={{ fontSize: 9, color: 'var(--text-tertiary)', marginBottom: 3 }}>{label}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono)', color }}>{val}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{
+                padding: '10px 12px', borderRadius: 7, fontSize: 11, lineHeight: 1.7,
+                background: posUnrealizedPnl >= 0 ? 'rgba(74,222,128,0.07)' : 'rgba(248,113,113,0.07)',
+                border: `0.5px solid ${posUnrealizedPnl >= 0 ? 'rgba(74,222,128,0.25)' : 'rgba(248,113,113,0.25)'}`,
+                color: 'var(--text-secondary)',
+              }}>
+                <strong style={{ color: posUnrealizedPnl >= 0 ? 'var(--green-text)' : 'var(--red-text)' }}>
+                  {posUnrealizedPnl >= 0 ? '📈 Profitable' : '📉 Underwater'} position
+                </strong>
+                {' '}— {pos.contracts} contract{pos.contracts > 1 ? 's' : ''} entered at{' '}
+                <strong style={{ color: 'var(--text-primary)' }}>${pos.entryPrice.toFixed(2)}/sh</strong> (${posTotalCost.toFixed(0)} total).
+                Currently worth <strong style={{ color: 'var(--text-primary)' }}>${posCurrentValue.toFixed(0)}</strong>.
+                {' '}Scenario matrix below now shows <strong style={{ color: '#818cf8' }}>your P&L</strong> based on entry price, not market price.
+                {data.daysLeft <= 14 && (
+                  <span style={{ color: 'var(--red-text)' }}>
+                    {' '}⚠️ Only {data.daysLeft} days left — theta decay accelerating.
+                  </span>
+                )}
+              </div>
+            </>
+          ) : (
+            <div style={{ fontSize: 10, color: 'var(--text-tertiary)', padding: '8px 12px', background: 'var(--bg-tertiary)', borderRadius: 6 }}>
+              Enter entry price above to simulate your real P&L. The scenario matrix will update to show profit/loss based on what you paid, not current market price.
+            </div>
+          )}
+        </div>
+
         {/* Earnings */}
         {(() => {
           const er = data.earnings
@@ -398,13 +626,30 @@ export default function OptionsDecoder({ initialNotation }) {
         {/* Scenario matrix */}
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <div style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--border-subtle)' }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
-              📊 Scenario Matrix — what is this contract worth at any price & date?
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
+                📊 Scenario Matrix — what is this contract worth at any price & date?
+              </span>
+              {pos && (
+                <span style={{
+                  fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
+                  background: 'rgba(129,140,248,0.15)', color: '#818cf8',
+                  border: '0.5px solid rgba(129,140,248,0.4)',
+                }}>
+                  YOUR P&L MODE
+                </span>
+              )}
             </div>
             <div style={{ fontSize: 10, color: 'var(--text-tertiary)', lineHeight: 1.6 }}>
-              Each cell shows the contract value (100 shares) and P&L vs. your cost of{' '}
-              <strong style={{ color: 'var(--text-primary)' }}>${(data.premium * 100).toFixed(0)}</strong>.
-              Green = profit · Red = loss · Color intensity = magnitude.
+              {pos
+                ? <>Each cell shows contract value and <strong style={{ color: '#818cf8' }}>your P&L</strong> based on entry price{' '}
+                    <strong style={{ color: 'var(--text-primary)' }}>${pos.entryPrice.toFixed(2)}/sh</strong> × {pos.contracts} contract{pos.contracts > 1 ? 's' : ''}{' '}
+                    (total cost <strong style={{ color: 'var(--text-primary)' }}>${posTotalCost.toFixed(0)}</strong>).
+                    Green = profit · Red = loss.</>
+                : <>Each cell shows the contract value (100 shares) and P&L vs. current market price{' '}
+                    <strong style={{ color: 'var(--text-primary)' }}>${(data.premium * 100).toFixed(0)}</strong>.
+                    Green = profit · Red = loss · Color intensity = magnitude.</>
+              }
             </div>
           </div>
           <div style={{ overflowX: 'auto' }}>
@@ -441,29 +686,39 @@ export default function OptionsDecoder({ initialNotation }) {
                     }}>
                       {row.label}
                     </td>
-                    {row.cells.map((cell, ci) => (
-                      <td key={ci} style={{
-                        padding: '7px 10px', textAlign: 'center',
-                        background: pnlBg(cell.pnl, maxAbs),
-                        borderBottom: '0.5px solid var(--border-subtle)',
-                        borderLeft: cell.spot === data.strike ? '1px solid rgba(251,191,36,0.3)' : undefined,
-                      }}>
-                        <div style={{ fontSize: 11, fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
-                          ${cell.value.toFixed(0)}
-                        </div>
-                        <div style={{ fontSize: 9, color: pnlColor(cell.pnl) }}>
-                          {cell.pnl >= 0 ? '+' : ''}{cell.pnl.toFixed(0)}
-                        </div>
-                      </td>
-                    ))}
+                    {row.cells.map((cell, ci) => {
+                      const pnl = cellPnl(cell)
+                      const displayValue = pos
+                        ? (cell.price * pos.contracts * 100).toFixed(0)
+                        : cell.value.toFixed(0)
+                      return (
+                        <td key={ci} style={{
+                          padding: '7px 10px', textAlign: 'center',
+                          background: pnlBg(pnl, maxAbs),
+                          borderBottom: '0.5px solid var(--border-subtle)',
+                          borderLeft: cell.spot === data.strike ? '1px solid rgba(251,191,36,0.3)' : undefined,
+                        }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+                            ${displayValue}
+                          </div>
+                          <div style={{ fontSize: 9, color: pnlColor(pnl) }}>
+                            {pnl >= 0 ? '+' : ''}{pnl.toFixed(0)}
+                          </div>
+                        </td>
+                      )
+                    })}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           <div style={{ padding: '8px 16px', fontSize: 10, color: 'var(--text-tertiary)', borderTop: '0.5px solid var(--border-subtle)' }}>
-            Scenario prices computed using Black-Scholes with current IV ({data.iv}%). P&L assumes you paid ${(data.premium * 100).toFixed(0)} per contract.
-            Actual results will differ if IV changes (vega risk).
+            Scenario prices computed using Black-Scholes with current IV ({data.iv}%).
+            {pos
+              ? ` P&L based on your entry $${pos.entryPrice.toFixed(2)}/sh × ${pos.contracts} contract${pos.contracts > 1 ? 's' : ''}.`
+              : ` P&L assumes you paid $${(data.premium * 100).toFixed(0)} per contract.`
+            }
+            {' '}Actual results will differ if IV changes (vega risk).
           </div>
         </div>
 
@@ -479,9 +734,9 @@ export default function OptionsDecoder({ initialNotation }) {
               { icon: 'Δ',  title: 'Delta approximation (quick)',
                 body: `For small moves, multiply the stock's move by delta × 100. Example: if ${data.symbol} rises $10 and delta is ${data.delta ?? '—'}, the contract gains ~$${data.delta ? (data.delta * 10 * 100).toFixed(0) : '—'}.` },
               { icon: 'Θ',  title: 'Theta erodes value daily',
-                body: `Without any stock move, this contract loses $${data.thetaDay != null ? Math.abs(data.thetaDay).toFixed(2) : '—'} per day. Over 30 days that's $${data.thetaDay != null ? (Math.abs(data.thetaDay) * 30).toFixed(0) : '—'} lost to time alone. This is why most options expire worthless.` },
+                body: `Without any stock move, this contract loses $${data.thetaDay != null ? (Math.abs(data.thetaDay) * 100).toFixed(2) : '—'} per day. Over 30 days that's $${data.thetaDay != null ? (Math.abs(data.thetaDay) * 100 * 30).toFixed(0) : '—'} lost to time alone. This is why most options expire worthless.` },
               { icon: 'V',  title: 'IV crush changes everything',
-                body: `Around earnings, IV spikes (options get expensive). After earnings, IV collapses (options get cheap) — even if the stock moves your way. This contract gains/loses $${data.vegaPct ?? '—'} per 1% IV move. Watch IV before buying.` },
+                body: `Around earnings, IV spikes (options get expensive). After earnings, IV collapses (options get cheap) — even if the stock moves your way. This contract gains/loses $${data.vegaPct != null ? (data.vegaPct * 100).toFixed(2) : '—'} per 1% IV move. Watch IV before buying.` },
               { icon: '💡', title: 'OTM options need big moves',
                 body: `This contract is ${data.pctToStrike?.toFixed(1)}% OTM. The stock must move ${fmtPct(data.breakevenPct)} just to break even at expiry. That's why OTM options are cheap — they're low-probability lottery tickets.` },
               { icon: '📅', title: 'Time is your enemy',

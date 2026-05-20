@@ -24,7 +24,9 @@ const EarningsFlowScanner     = lazy(() => import('./components/EarningsFlowScan
 const ATHCatalystScanner      = lazy(() => import('./components/ATHCatalystScanner.jsx'))
 const LowFloatMomentumScanner = lazy(() => import('./components/LowFloatMomentumScanner.jsx'))
 const ThemeRocketScanner      = lazy(() => import('./components/ThemeRocketScanner.jsx'))
+const PreRocketScanner        = lazy(() => import('./components/PreRocketScanner.jsx'))
 const OptionsDecoder          = lazy(() => import('./components/OptionsDecoder.jsx'))
+const PoliticianTracker       = lazy(() => import('./components/PoliticianTracker.jsx'))
 const AlertsTab               = lazy(() => import('./components/AlertsTab.jsx'))
 const ReplayChart             = lazy(() => import('./components/ReplayChart.jsx'))
 const EconomicCalendar        = lazy(() => import('./components/EconomicCalendar.jsx'))
@@ -42,6 +44,7 @@ const TABS = [
   { id: 'ath-catalyst',      label: '🎯 ATH Catalyst'  },
   { id: 'low-float',         label: '⚡ Low Float'     },
   { id: 'theme-rockets',     label: '🚀 Theme Rockets' },
+  { id: 'pre-rocket',        label: '🎯 Pre-Rocket'    },
   { id: 'earnings-flow',     label: '📅 Earnings Flow' },
   { id: 'news-impact',       label: '📰 News Impact'   },
   { id: 'scanner',           label: 'Scanner'          },
@@ -57,6 +60,7 @@ const TABS = [
   { id: 'tracker',           label: 'Tracker'          },
   { id: 'institutional',     label: 'Institutions'     },
   { id: 'institutional-flow', label: 'Inst Flow'       },
+  { id: 'politician',        label: '🏛️ Politicians'  },
   { id: 'trading',           label: 'Trading'          },
   { id: 'journal',           label: 'Journal'          },
   { id: 'export',            label: 'Export'           },
@@ -381,6 +385,9 @@ export default function App() {
         {activeTab === 'theme-rockets' && (
           <ThemeRocketScanner onAnalyze={openAnalyzer} />
         )}
+        {activeTab === 'pre-rocket' && (
+          <PreRocketScanner onAnalyze={openAnalyzer} />
+        )}
         {activeTab === 'options-decode' && (
           <OptionsDecoder initialNotation={decodeNotation} />
         )}
@@ -419,6 +426,9 @@ export default function App() {
         )}
         {activeTab === 'institutional-flow' && (
           <InstitutionalFlowTracker onAnalyze={openAnalyzer} />
+        )}
+        {activeTab === 'politician' && (
+          <PoliticianTracker onAnalyze={openAnalyzer} />
         )}
         {activeTab === 'crypto' && (
           <CryptoHub onAnalyze={openAnalyzer} />

@@ -67,6 +67,12 @@ except Exception as e:
     print(f"Failed to import theme rocket scanner: {e}")
 
 try:
+    from server.services.pre_rocket_scanner import scan_pre_rockets
+    print("Pre-rocket scanner imported successfully")
+except Exception as e:
+    print(f"Failed to import pre-rocket scanner: {e}")
+
+try:
     from server.services.deep_info import get_deep_info
     print("Deep info imported successfully")
 except Exception as e:
@@ -93,6 +99,12 @@ try:
     print("Holdings imported successfully")
 except Exception as e:
     print(f"Failed to import holdings: {e}")
+
+try:
+    from server.services.politician_tracker import get_trades as get_politician_trades, get_stats as get_politician_stats
+    print("Politician tracker imported successfully")
+except Exception as e:
+    print(f"Failed to import politician tracker: {e}")
 
 
 @asynccontextmanager
@@ -1068,6 +1080,23 @@ async def low_float_momentum_scan():
     return result
 
 
+_pre_rocket_cache: dict | None = None
+_pre_rocket_ts: float = 0
+_PRE_ROCKET_TTL = 1800  # 30 minutes — expensive scan
+
+@app.get("/api/scan/pre-rockets")
+async def pre_rocket_scan(max_gain: float = 40.0):
+    """Identify stocks in hot themes that haven't run yet but show pre-rocket signals."""
+    import time
+    global _pre_rocket_cache, _pre_rocket_ts
+    if _pre_rocket_cache and time.time() - _pre_rocket_ts < _PRE_ROCKET_TTL:
+        return _pre_rocket_cache
+    result = await asyncio.to_thread(scan_pre_rockets, max_gain)
+    _pre_rocket_cache = result
+    _pre_rocket_ts = time.time()
+    return result
+
+
 _theme_rocket_cache: dict = {}
 _THEME_ROCKET_TTL = 1800  # 30 minutes
 
@@ -1281,3 +1310,33 @@ def db_stats():
         "db_size":  f"{size_bytes / 1024:.1f} KB",
         "table_count": len(tables),
     }
+
+
+# ── Politician Trade Tracker ──────────────────────────────────────────────────
+
+@app.get("/api/politician-trades")
+async def politician_trades(
+    ticker:  str | None = Query(None),
+    chamber: str = Query("all"),
+    tx_type: str = Query("all"),
+    days:    int = Query(90),
+    limit:   int = Query(200),
+):
+    result = await asyncio.to_thread(
+        get_politician_trades, ticker, chamber, tx_type, days, limit
+    )
+    # propagate API key error
+    if isinstance(result, dict) and "error" in result:
+        raise HTTPException(status_code=503, detail=result["error"])
+    return {"trades": result, "count": len(result)}
+
+
+@app.get("/api/politician-trades/stats")
+async def politician_trades_stats(
+    ticker: str | None = Query(None),
+    days:   int = Query(90),
+):
+    result = await asyncio.to_thread(get_politician_stats, ticker, days)
+    if isinstance(result, dict) and "error" in result:
+        raise HTTPException(status_code=503, detail=result["error"])
+    return result

@@ -14,7 +14,16 @@ async function apiFetch(path, options = {}) {
     signal: AbortSignal.timeout(timeout),
     ...options,
   })
-  if (!res.ok) throw new Error(`Backend ${res.status}: ${path}`)
+  if (!res.ok) {
+    let detail = `Backend ${res.status}: ${path}`
+    try {
+      const body = await res.json()
+      if (body?.detail) detail = body.detail
+    } catch (_) {}
+    const err = new Error(detail)
+    err.detail = detail
+    throw err
+  }
   return res.json()
 }
 
@@ -269,6 +278,10 @@ export async function backendThemeRockets(minGain = 20) {
   return apiFetch(`/api/scan/theme-rockets?min_gain=${minGain}`, { _timeout: 120000 })
 }
 
+export async function backendPreRockets(maxGain = 40) {
+  return apiFetch(`/api/scan/pre-rockets?max_gain=${maxGain}`, { _timeout: 180000 })
+}
+
 // ── Options Decoder ───────────────────────────────────────────────────────────
 export async function backendOptionsDecoder({ symbol, strike, optType, expiry }) {
   const p = new URLSearchParams({ symbol, strike, opt_type: optType, expiry })
@@ -339,4 +352,22 @@ export async function backendHoldingHistory(symbol, days = 30) {
 
 export async function backendRefreshHoldings() {
   return apiFetch('/api/holdings/refresh', { method: 'POST', _timeout: 60000 })
+}
+
+// ── Politician Trade Tracker ──────────────────────────────────────────────────
+export async function backendPoliticianTrades({ ticker, chamber = 'all', txType = 'all', days = 90, limit = 200 } = {}) {
+  const p = new URLSearchParams()
+  if (ticker) p.set('ticker', ticker)
+  p.set('chamber', chamber)
+  p.set('tx_type', txType)
+  p.set('days', days)
+  p.set('limit', limit)
+  return apiFetch(`/api/politician-trades?${p}`, { _timeout: 40000 })
+}
+
+export async function backendPoliticianStats({ ticker, days = 90 } = {}) {
+  const p = new URLSearchParams()
+  if (ticker) p.set('ticker', ticker)
+  p.set('days', days)
+  return apiFetch(`/api/politician-trades/stats?${p}`, { _timeout: 40000 })
 }

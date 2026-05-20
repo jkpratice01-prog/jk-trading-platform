@@ -17,8 +17,10 @@ SCAN_SYMBOLS = [
     'WMT', 'COST', 'TGT', 'HD', 'AMZN', 'NKE', 'SBUX',
     # ETFs
     'SPY', 'QQQ', 'IWM', 'GLD', 'TLT',
-    # Semis
-    'MU', 'AMAT', 'LRCX', 'KLAC',
+    # Semis / Optical Networking
+    'MU', 'AMAT', 'LRCX', 'KLAC', 'AAOI', 'COHR', 'LITE', 'CIEN', 'INFN', 'VIAVI', 'IPGP',
+    # Clean Energy & Hydrogen
+    'FCEL', 'PLUG', 'BE', 'BLDP', 'CLNE', 'HTOO',
     # Growth / speculative
     'SOFI', 'HOOD', 'RBLX', 'U', 'RIVN', 'LCID',
 ]
