@@ -20,6 +20,7 @@ primary_region = "iad"
   auto_stop_machines   = false
   auto_start_machines  = true
   min_machines_running = 1
+  idle_timeout         = 180
 
   [[http_service.checks]]
     interval     = "30s"

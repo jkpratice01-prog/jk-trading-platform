@@ -1,5 +1,6 @@
 """FastAPI backend for trading platform."""
 import os
+import time
 import asyncio
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
@@ -124,7 +125,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"Holdings init error: {e}")
         import traceback; traceback.print_exc()
-    # Pre-warm options cache in background so first user request is fast
+    # Pre-warm caches in background so first user requests are fast
     import threading
     def _prewarm():
         try:
@@ -135,7 +136,13 @@ async def lifespan(app: FastAPI):
                 except Exception:
                     pass
         except Exception as e:
-            print(f"[prewarm] error: {e}")
+            print(f"[prewarm] options error: {e}")
+        try:
+            result = scan_low_float_momentum()
+            _low_float_cache['data'] = (result, time.time())
+            print(f"[prewarm] low-float cached: {result.get('count', 0)} results")
+        except Exception as e:
+            print(f"[prewarm] low-float error: {e}")
     threading.Thread(target=_prewarm, daemon=True).start()
 
     print("=== STARTUP COMPLETE ===")
